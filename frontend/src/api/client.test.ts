@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { apiFetch, ApiError, clearStoredToken, setStoredToken, TOKEN_KEY } from './client';
 
 function mockFetchOnce(status: number, json: unknown) {
-  global.fetch = vi.fn().mockResolvedValue({
+  globalThis.fetch = vi.fn().mockResolvedValue({
     ok: status >= 200 && status < 300,
     status,
     json: async () => json,
@@ -20,7 +20,7 @@ describe('apiFetch', () => {
     setStoredToken('abc.def.ghi');
     mockFetchOnce(200, { success: true, data: { ok: 1 } });
     const data = await apiFetch<{ ok: number }>('/dashboard');
-    expect(global.fetch).toHaveBeenCalledWith(
+    expect(globalThis.fetch).toHaveBeenCalledWith(
       expect.stringContaining('/dashboard'),
       expect.objectContaining({
         headers: expect.objectContaining({ Authorization: 'Bearer abc.def.ghi' }),
@@ -32,7 +32,7 @@ describe('apiFetch', () => {
   it('appends query params', async () => {
     mockFetchOnce(200, { success: true, data: [] });
     await apiFetch('/students', { query: { page: 2, search: 'a b' } });
-    const [url] = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0] as [string];
+    const [url] = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0] as [string];
     expect(url).toContain('page=2');
     expect(url).toContain('search=a%20b');
   });
