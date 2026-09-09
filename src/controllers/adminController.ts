@@ -1,0 +1,879 @@
+import { Response } from 'express';
+import bcrypt from 'bcryptjs';
+import { User } from '../models/User';
+import { StudentProfile } from '../models/StudentProfile';
+import { FacultyProfile } from '../models/FacultyProfile';
+import { Supervisor } from '../models/Supervisor';
+import { SRCCommittee } from '../models/SRCCommittee';
+import { Event } from '../models/Event';
+import { Form } from '../models/Form';
+import { Deadline } from '../models/Deadline';
+import { ApprovalRequest } from '../models/ApprovalRequest';
+import { AppError, asyncHandler } from '../middleware/errorHandler';
+import { createAuditLog } from '../utils/audit';
+import { createNotification } from '../utils/notify';
+import { UserRole, AuthRequest, ApprovalStatus } from '../types';
+import { paginate } from '../utils/pagination';
+import { Milestone } from '../models/Milestone';
+import { seedMilestones, updateMilestone as updateMilestoneService } from '../services/milestoneService';
+import { resolveParticipants } from '../utils/participants';
+import { sendNotificationEmail } from '../utils/email';
+import { SRCMemberRole } from '../types';
+
+// ─── Dashboard ───────────────────────────────────────────────────────────────
+
+export const getDashboard = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const [totalStudents, totalFaculty, totalEvents, pendingApprovals] = await Promise.all([
+    User.countDocuments({ role: UserRole.STUDENT }),
+    User.countDocuments({ role: UserRole.SUPERVISOR }),
+    Event.countDocuments(),
+    ApprovalRequest.countDocuments({ status: ApprovalStatus.PENDING }),
+  ]);
+
+  res.status(200).json({
+    success: true,
+    data: { totalStudents, totalFaculty, totalEvents, pendingApprovals },
+  });
+});
+
+// ─── Student Management ──────────────────────────────────────────────────────
+
+export const createStudent = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { email, password, name, collegeId, rollNumber, studentType, department, researchArea, admissionDate, requiredCredits } = req.body;
+
+  if (!email || !password || !name || !collegeId || !rollNumber || !studentType || !department) {
+    throw new AppError('All required fields must be provided', 400);
+  }
+
+  const existingUser = await User.findOne({ email: email.toLowerCase() });
+  if (existingUser) {
+    throw new AppError('Email already registered', 409);
+  }
+
+  const existingCollege = await StudentProfile.findOne({ collegeId });
+  if (existingCollege) {
+    throw new AppError('College ID already exists', 409);
+  }
+
+  const existingRoll = await StudentProfile.findOne({ rollNumber });
+  if (existingRoll) {
+    throw new AppError('Roll number already exists', 409);
+  }
+
+  const hashedPassword = await bcrypt.hash(password, 12);
+
+  const user = await User.create({
+    email: email.toLowerCase(),
+    password: hashedPassword,
+    name,
+    role: UserRole.STUDENT,
+    isActive: true,
+  });
+
+  const profile = await StudentProfile.create({
+    user: user._id,
+    collegeId,
+    rollNumber,
+    studentType,
+    department,
+    researchArea: researchArea || '',
+    admissionDate: admissionDate || new Date(),
+    requiredCredits: requiredCredits || undefined,
+  });
+
+  await seedMilestones(profile._id.toString());
+
+  await createAuditLog({
+    user: req.user!.id,
+    action: 'CREATE_STUDENT',
+    entity: 'StudentProfile',
+    entityId: profile._id.toString(),
+    newValue: { email, name, collegeId, rollNumber, studentType, department } as Record<string, unknown>,
+  });
+
+  res.status(201).json({
+    success: true,
+    data: {
+      user: { id: user._id, name: user.name, email: user.email, role: user.role },
+      profile,
+    },
+  });
+});
+
+export const updateStudent = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { id } = req.params;
+  const updates = req.body;
+
+  const profile = await StudentProfile.findById(id);
+  if (!profile) {
+    throw new AppError('Student profile not found', 404);
+  }
+
+  const previousValue = profile.toObject() as unknown as Record<string, unknown>;
+
+  const allowedFields = ['collegeId', 'rollNumber', 'studentType', 'department', 'researchArea', 'profilePhoto'];
+  const sanitizedUpdates: Record<string, unknown> = {};
+  for (const field of allowedFields) {
+    if (updates[field] !== undefined) {
+      sanitizedUpdates[field] = updates[field];
+    }
+  }
+
+  if (updates.name || updates.email) {
+    const userUpdates: Record<string, unknown> = {};
+    if (updates.name) userUpdates.name = updates.name;
+    if (updates.email) userUpdates.email = updates.email.toLowerCase();
+    await User.findByIdAndUpdate(profile.user, userUpdates);
+  }
+
+  Object.assign(profile, sanitizedUpdates);
+  await profile.save();
+
+  await createAuditLog({
+    user: req.user!.id,
+    action: 'UPDATE_STUDENT',
+    entity: 'StudentProfile',
+    entityId: id,
+    previousValue,
+    newValue: sanitizedUpdates,
+  });
+
+  res.status(200).json({ success: true, data: profile });
+});
+
+export const toggleStudentActive = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { id } = req.params;
+
+  const user = await User.findById(id);
+  if (!user || user.role !== UserRole.STUDENT) {
+    throw new AppError('Student not found', 404);
+  }
+
+  user.isActive = !user.isActive;
+  await user.save();
+
+  await createAuditLog({
+    user: req.user!.id,
+    action: user.isActive ? 'ACTIVATE_STUDENT' : 'DEACTIVATE_STUDENT',
+    entity: 'User',
+    entityId: id,
+    newValue: { isActive: user.isActive } as Record<string, unknown>,
+  });
+
+  await createNotification({
+    user: id,
+    title: user.isActive ? 'Account Activated' : 'Account Deactivated',
+    message: user.isActive
+      ? 'Your account has been activated by the administrator.'
+      : 'Your account has been deactivated by the administrator.',
+    type: 'account_status',
+  });
+
+  res.status(200).json({
+    success: true,
+    data: { id: user._id, isActive: user.isActive },
+  });
+});
+
+export const listStudents = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const page = Math.max(1, parseInt(req.query.page as string) || 1);
+  const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
+  const { search, studentType, department } = req.query;
+
+  const filter: Record<string, unknown> = {};
+  if (studentType) filter.studentType = studentType;
+  if (department) filter.department = department;
+
+  if (search) {
+    const regex = new RegExp(search as string, 'i');
+    const matchingUsers = await User.find({
+      role: UserRole.STUDENT,
+      $or: [{ name: regex }, { email: regex }],
+    }).select('_id');
+    const userIds = matchingUsers.map((u) => u._id);
+
+    filter.$or = [
+      { user: { $in: userIds } },
+      { collegeId: regex },
+      { rollNumber: regex },
+    ];
+  }
+
+  const result = await paginate(StudentProfile, filter, page, limit, { createdAt: -1 }, ['user']);
+
+  res.status(200).json({
+    success: true,
+    data: {
+      students: result.data,
+      pagination: {
+        page: result.page,
+        limit,
+        total: result.total,
+        totalPages: result.totalPages,
+      },
+    },
+  });
+});
+
+// ─── Faculty Management ──────────────────────────────────────────────────────
+
+export const createFaculty = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { email, password, name, employeeId, department, designation, researchAreas } = req.body;
+
+  if (!email || !password || !name || !employeeId || !department || !designation) {
+    throw new AppError('All required fields must be provided', 400);
+  }
+
+  const existingUser = await User.findOne({ email: email.toLowerCase() });
+  if (existingUser) {
+    throw new AppError('Email already registered', 409);
+  }
+
+  const existingEmp = await FacultyProfile.findOne({ employeeId });
+  if (existingEmp) {
+    throw new AppError('Employee ID already exists', 409);
+  }
+
+  const hashedPassword = await bcrypt.hash(password, 12);
+
+  const user = await User.create({
+    email: email.toLowerCase(),
+    password: hashedPassword,
+    name,
+    role: UserRole.SUPERVISOR,
+    isActive: true,
+  });
+
+  const profile = await FacultyProfile.create({
+    user: user._id,
+    employeeId,
+    department,
+    designation,
+    researchAreas: researchAreas || [],
+  });
+
+  await createAuditLog({
+    user: req.user!.id,
+    action: 'CREATE_FACULTY',
+    entity: 'FacultyProfile',
+    entityId: profile._id.toString(),
+    newValue: { email, name, employeeId, department, designation } as Record<string, unknown>,
+  });
+
+  res.status(201).json({
+    success: true,
+    data: {
+      user: { id: user._id, name: user.name, email: user.email, role: user.role },
+      profile,
+    },
+  });
+});
+
+export const updateFaculty = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { id } = req.params;
+  const updates = req.body;
+
+  const profile = await FacultyProfile.findById(id);
+  if (!profile) {
+    throw new AppError('Faculty profile not found', 404);
+  }
+
+  const previousValue = profile.toObject() as unknown as Record<string, unknown>;
+
+  const allowedFields = ['employeeId', 'department', 'designation', 'researchAreas', 'profilePhoto'];
+  const sanitizedUpdates: Record<string, unknown> = {};
+  for (const field of allowedFields) {
+    if (updates[field] !== undefined) {
+      sanitizedUpdates[field] = updates[field];
+    }
+  }
+
+  if (updates.name || updates.email) {
+    const userUpdates: Record<string, unknown> = {};
+    if (updates.name) userUpdates.name = updates.name;
+    if (updates.email) userUpdates.email = updates.email.toLowerCase();
+    await User.findByIdAndUpdate(profile.user, userUpdates);
+  }
+
+  Object.assign(profile, sanitizedUpdates);
+  await profile.save();
+
+  await createAuditLog({
+    user: req.user!.id,
+    action: 'UPDATE_FACULTY',
+    entity: 'FacultyProfile',
+    entityId: id,
+    previousValue,
+    newValue: sanitizedUpdates,
+  });
+
+  res.status(200).json({ success: true, data: profile });
+});
+
+export const toggleFacultyActive = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { id } = req.params;
+
+  const user = await User.findById(id);
+  if (!user || user.role !== UserRole.SUPERVISOR) {
+    throw new AppError('Faculty not found', 404);
+  }
+
+  user.isActive = !user.isActive;
+  await user.save();
+
+  await createAuditLog({
+    user: req.user!.id,
+    action: user.isActive ? 'ACTIVATE_FACULTY' : 'DEACTIVATE_FACULTY',
+    entity: 'User',
+    entityId: id,
+    newValue: { isActive: user.isActive } as Record<string, unknown>,
+  });
+
+  await createNotification({
+    user: id,
+    title: user.isActive ? 'Account Activated' : 'Account Deactivated',
+    message: user.isActive
+      ? 'Your account has been activated by the administrator.'
+      : 'Your account has been deactivated by the administrator.',
+    type: 'account_status',
+  });
+
+  res.status(200).json({
+    success: true,
+    data: { id: user._id, isActive: user.isActive },
+  });
+});
+
+export const listFaculty = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const page = Math.max(1, parseInt(req.query.page as string) || 1);
+  const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
+  const { search, department } = req.query;
+
+  const filter: Record<string, unknown> = {};
+  if (department) filter.department = department;
+
+  if (search) {
+    const regex = new RegExp(search as string, 'i');
+    const matchingUsers = await User.find({
+      role: UserRole.SUPERVISOR,
+      $or: [{ name: regex }, { email: regex }],
+    }).select('_id');
+    const userIds = matchingUsers.map((u) => u._id);
+
+    filter.$or = [
+      { user: { $in: userIds } },
+      { employeeId: regex },
+    ];
+  }
+
+  const result = await paginate(FacultyProfile, filter, page, limit, { createdAt: -1 }, ['user']);
+
+  res.status(200).json({
+    success: true,
+    data: {
+      faculty: result.data,
+      pagination: {
+        page: result.page,
+        limit,
+        total: result.total,
+        totalPages: result.totalPages,
+      },
+    },
+  });
+});
+
+// ─── Supervisor Assignment ───────────────────────────────────────────────────
+
+export const assignSupervisor = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { studentId, supervisorId, coSupervisorId } = req.body;
+
+  if (!studentId || !supervisorId) {
+    throw new AppError('studentId and supervisorId are required', 400);
+  }
+
+  const studentProfile = await StudentProfile.findById(studentId);
+  if (!studentProfile) {
+    throw new AppError('Student profile not found', 404);
+  }
+
+  const supervisorProfile = await FacultyProfile.findById(supervisorId);
+  if (!supervisorProfile) {
+    throw new AppError('Supervisor profile not found', 404);
+  }
+
+  if (coSupervisorId) {
+    const coProfile = await FacultyProfile.findById(coSupervisorId);
+    if (!coProfile) {
+      throw new AppError('Co-supervisor profile not found', 404);
+    }
+  }
+
+  const existing = await Supervisor.findOne({ student: studentId, isActive: true });
+  if (existing) {
+    existing.isActive = false;
+    await existing.save();
+  }
+
+  const supervisorRecord = await Supervisor.create({
+    student: studentId,
+    supervisor: supervisorId,
+    coSupervisor: coSupervisorId || undefined,
+    assignedDate: new Date(),
+    isActive: true,
+  });
+
+  studentProfile.supervisor = supervisorId;
+  if (coSupervisorId) {
+    studentProfile.coSupervisor = coSupervisorId;
+  }
+  await studentProfile.save();
+
+  await createAuditLog({
+    user: req.user!.id,
+    action: 'ASSIGN_SUPERVISOR',
+    entity: 'Supervisor',
+    entityId: supervisorRecord._id.toString(),
+    newValue: { studentId, supervisorId, coSupervisorId } as Record<string, unknown>,
+  });
+
+  await createNotification({
+    user: studentProfile.user.toString(),
+    title: 'Supervisor Assigned',
+    message: `A new supervisor has been assigned to you.`,
+    type: 'supervisor_assigned',
+  });
+
+  res.status(201).json({ success: true, data: supervisorRecord });
+});
+
+// ─── SRC Committee ───────────────────────────────────────────────────────────
+
+export const createSRCCommittee = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { studentId, members } = req.body;
+
+  if (!studentId || !members || !Array.isArray(members) || members.length === 0) {
+    throw new AppError('studentId and at least one member are required', 400);
+  }
+
+  const studentProfile = await StudentProfile.findById(studentId);
+  if (!studentProfile) {
+    throw new AppError('Student profile not found', 404);
+  }
+
+  const existing = await SRCCommittee.findOne({ student: studentId });
+  if (existing) {
+    throw new AppError('SRC committee already exists for this student. Use update instead.', 409);
+  }
+
+  const chairpersonCount = members.filter((m: { role: string }) => m.role === SRCMemberRole.CHAIRPERSON).length;
+  if (chairpersonCount !== 1) {
+    throw new AppError('SRC committee must have exactly one chairperson', 400);
+  }
+
+  const supervisorMember = members.find((m: { role: string }) => m.role === SRCMemberRole.SUPERVISOR);
+  if (supervisorMember && studentProfile.supervisor) {
+    if (supervisorMember.faculty !== studentProfile.supervisor.toString()) {
+      throw new AppError('SRC supervisor must match the assigned supervisor', 400);
+    }
+  }
+
+  const committee = await SRCCommittee.create({ student: studentId, members });
+
+  studentProfile.srcCommittee = committee._id.toString();
+  await studentProfile.save();
+
+  await createAuditLog({
+    user: req.user!.id,
+    action: 'CREATE_SRC_COMMITTEE',
+    entity: 'SRCCommittee',
+    entityId: committee._id.toString(),
+    newValue: { studentId, members } as Record<string, unknown>,
+  });
+
+  res.status(201).json({ success: true, data: committee });
+});
+
+export const updateSRCCommittee = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { id } = req.params;
+  const { members } = req.body;
+
+  if (!members || !Array.isArray(members)) {
+    throw new AppError('members array is required', 400);
+  }
+
+  const committee = await SRCCommittee.findById(id);
+  if (!committee) {
+    throw new AppError('SRC committee not found', 404);
+  }
+
+  const previousValue = committee.toObject() as unknown as Record<string, unknown>;
+
+  committee.members = members;
+  await committee.save();
+
+  await createAuditLog({
+    user: req.user!.id,
+    action: 'UPDATE_SRC_COMMITTEE',
+    entity: 'SRCCommittee',
+    entityId: id,
+    previousValue,
+    newValue: { members } as Record<string, unknown>,
+  });
+
+  res.status(200).json({ success: true, data: committee });
+});
+
+// ─── Event Management ────────────────────────────────────────────────────────
+
+export const createEvent = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { title, eventType, description, date, startTime, endTime, location, participants, deadline } = req.body;
+
+  if (!title || !eventType || !date || !startTime || !endTime) {
+    throw new AppError('title, eventType, date, startTime, and endTime are required', 400);
+  }
+
+  const { userIds, participantDocs } = await resolveParticipants(Array.isArray(participants) ? participants : []);
+
+  const event = await Event.create({
+    title,
+    eventType,
+    description: description || '',
+    date,
+    startTime,
+    endTime,
+    location: location || '',
+    organizer: req.user!.id,
+    organizerModel: 'User',
+    participants: participantDocs,
+    deadline,
+  });
+
+  if (userIds.length) {
+    const participantUsers = await User.find({ _id: { $in: userIds } }).select('email').lean();
+    const eventMessage = `You have been invited to "${title}" on ${new Date(date).toLocaleDateString()}.`;
+    for (const u of participantUsers) {
+      await createNotification({
+        user: String(u._id),
+        title: `New Event: ${title}`,
+        message: eventMessage,
+        type: 'event_invitation',
+        link: '/student/events',
+      });
+      await sendNotificationEmail(u.email, 'New Event: ' + title, eventMessage);
+    }
+  }
+
+  await createAuditLog({
+    user: req.user!.id,
+    action: 'CREATE_EVENT',
+    entity: 'Event',
+    entityId: event._id.toString(),
+    newValue: { title, eventType, date } as Record<string, unknown>,
+  });
+
+  res.status(201).json({ success: true, data: event });
+});
+
+export const updateEvent = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { id } = req.params;
+
+  const event = await Event.findById(id);
+  if (!event) {
+    throw new AppError('Event not found', 404);
+  }
+
+  const previousValue = event.toObject() as unknown as Record<string, unknown>;
+
+  const allowedFields = ['title', 'eventType', 'description', 'date', 'startTime', 'endTime', 'location', 'participants', 'deadline', 'eligibilityRules'];
+  for (const field of allowedFields) {
+    if (req.body[field] !== undefined) {
+      (event as unknown as Record<string, unknown>)[field] = req.body[field];
+    }
+  }
+  await event.save();
+
+  await createAuditLog({
+    user: req.user!.id,
+    action: 'UPDATE_EVENT',
+    entity: 'Event',
+    entityId: id,
+    previousValue,
+    newValue: req.body as Record<string, unknown>,
+  });
+
+  res.status(200).json({ success: true, data: event });
+});
+
+export const deleteEvent = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { id } = req.params;
+
+  const event = await Event.findById(id);
+  if (!event) {
+    throw new AppError('Event not found', 404);
+  }
+
+  await Event.findByIdAndDelete(id);
+
+  await createAuditLog({
+    user: req.user!.id,
+    action: 'DELETE_EVENT',
+    entity: 'Event',
+    entityId: id,
+    previousValue: { title: event.title, eventType: event.eventType } as Record<string, unknown>,
+  });
+
+  res.status(200).json({
+    success: true,
+    data: { message: 'Event deleted successfully' },
+  });
+});
+
+export const listEvents = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const page = Math.max(1, parseInt(req.query.page as string) || 1);
+  const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
+
+  const result = await paginate(Event, {}, page, limit, { date: -1 }, ['organizer']);
+
+  res.status(200).json({
+    success: true,
+    data: {
+      events: result.data,
+      pagination: {
+        page: result.page,
+        limit,
+        total: result.total,
+        totalPages: result.totalPages,
+      },
+    },
+  });
+});
+
+// ─── Form Management ─────────────────────────────────────────────────────────
+
+export const listForms = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const page = Math.max(1, parseInt(req.query.page as string) || 1);
+  const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
+
+  const result = await paginate(Form, {}, page, limit, { createdAt: -1 });
+
+  res.status(200).json({
+    success: true,
+    data: {
+      forms: result.data,
+      pagination: {
+        page: result.page,
+        limit,
+        total: result.total,
+        totalPages: result.totalPages,
+      },
+    },
+  });
+});
+
+export const createForm = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { formName, formType, fileUrl, semesterApplicable, studentTypeApplicable, department } = req.body;
+
+  if (!formName || !formType || !fileUrl) {
+    throw new AppError('formName, formType, and fileUrl are required', 400);
+  }
+
+  const form = await Form.create({
+    formName,
+    formType,
+    fileUrl,
+    semesterApplicable,
+    studentTypeApplicable,
+    department,
+  });
+
+  await createAuditLog({
+    user: req.user!.id,
+    action: 'CREATE_FORM',
+    entity: 'Form',
+    entityId: form._id.toString(),
+    newValue: { formName, formType, fileUrl } as Record<string, unknown>,
+  });
+
+  res.status(201).json({ success: true, data: form });
+});
+
+export const updateForm = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { id } = req.params;
+
+  const form = await Form.findById(id);
+  if (!form) {
+    throw new AppError('Form not found', 404);
+  }
+
+  const previousValue = form.toObject() as unknown as Record<string, unknown>;
+
+  const allowedFields = ['formName', 'formType', 'fileUrl', 'semesterApplicable', 'studentTypeApplicable', 'department'];
+  for (const field of allowedFields) {
+    if (req.body[field] !== undefined) {
+      (form as unknown as Record<string, unknown>)[field] = req.body[field];
+    }
+  }
+  await form.save();
+
+  await createAuditLog({
+    user: req.user!.id,
+    action: 'UPDATE_FORM',
+    entity: 'Form',
+    entityId: id,
+    previousValue,
+    newValue: req.body as Record<string, unknown>,
+  });
+
+  res.status(200).json({ success: true, data: form });
+});
+
+export const deleteForm = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { id } = req.params;
+
+  const form = await Form.findByIdAndDelete(id);
+  if (!form) {
+    throw new AppError('Form not found', 404);
+  }
+
+  await createAuditLog({
+    user: req.user!.id,
+    action: 'DELETE_FORM',
+    entity: 'Form',
+    entityId: id,
+    previousValue: { formName: form.formName } as Record<string, unknown>,
+  });
+
+  res.status(200).json({
+    success: true,
+    data: { message: 'Form deleted successfully' },
+  });
+});
+
+// ─── Deadline Management ─────────────────────────────────────────────────────
+
+export const listDeadlines = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const page = Math.max(1, parseInt(req.query.page as string) || 1);
+  const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
+
+  const result = await paginate(Deadline, {}, page, limit, { dueDate: -1 }, ['semester', 'student']);
+
+  res.status(200).json({
+    success: true,
+    data: {
+      deadlines: result.data,
+      pagination: {
+        page: result.page,
+        limit,
+        total: result.total,
+        totalPages: result.totalPages,
+      },
+    },
+  });
+});
+
+export const createDeadline = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { title, description, dueDate, semester, student } = req.body;
+
+  if (!title || !dueDate) {
+    throw new AppError('title and dueDate are required', 400);
+  }
+
+  const deadline = await Deadline.create({
+    title,
+    description: description || '',
+    dueDate,
+    semester,
+    student,
+    createdBy: req.user!.id,
+  });
+
+  await createAuditLog({
+    user: req.user!.id,
+    action: 'CREATE_DEADLINE',
+    entity: 'Deadline',
+    entityId: deadline._id.toString(),
+    newValue: { title, dueDate } as Record<string, unknown>,
+  });
+
+  res.status(201).json({ success: true, data: deadline });
+});
+
+// ─── Milestone Management ─────────────────────────────────────────────────────
+
+export const updateMilestone = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { id } = req.params;
+  const { status, dueDate, title, description } = req.body;
+
+  const milestone = await Milestone.findById(id);
+  if (!milestone) {
+    throw new AppError('Milestone not found', 404);
+  }
+
+  const studentProfile = await StudentProfile.findById(milestone.student);
+  if (!studentProfile) {
+    throw new AppError('Milestone not found', 404);
+  }
+
+  const updated = await updateMilestoneService(id, req.user!.id, { status, dueDate, title, description });
+
+  await createAuditLog({
+    user: req.user!.id,
+    action: 'UPDATE_MILESTONE',
+    entity: 'Milestone',
+    entityId: id,
+    previousValue: milestone.toObject() as unknown as Record<string, unknown>,
+    newValue: { status, dueDate, title, description } as Record<string, unknown>,
+  });
+
+  res.status(200).json({ success: true, data: updated });
+});
+
+// ─── Global Search ───────────────────────────────────────────────────────────
+
+export const globalSearch = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { q } = req.query;
+
+  if (!q) {
+    throw new AppError('Search query (q) is required', 400);
+  }
+
+  const regex = new RegExp(q as string, 'i');
+
+  const [students, faculty] = await Promise.all([
+    StudentProfile.find({
+      $or: [{ collegeId: regex }, { rollNumber: regex }],
+    })
+      .populate('user', 'name email isActive')
+      .limit(20)
+      .lean(),
+    FacultyProfile.find({
+      employeeId: regex,
+    })
+      .populate('user', 'name email isActive')
+      .limit(20)
+      .lean(),
+  ]);
+
+  const studentUsers = await User.find({
+    role: UserRole.STUDENT,
+    name: regex,
+  }).select('_id name email isActive').limit(20).lean();
+
+  const facultyUsers = await User.find({
+    role: UserRole.SUPERVISOR,
+    name: regex,
+  }).select('_id name email isActive').limit(20).lean();
+
+  const studentIds = new Set(students.map((s) => s.user.toString()));
+  const matchedStudentsFromUser = studentUsers.filter((u) => !studentIds.has(u._id.toString()));
+  const matchedFacultyFromUser = facultyUsers.filter((u) => !faculty.some((f) => f.user.toString() === u._id.toString()));
+
+  res.status(200).json({
+    success: true,
+    data: {
+      students: [...students, ...matchedStudentsFromUser.map((u) => ({ user: u }))],
+      faculty: [...faculty, ...matchedFacultyFromUser.map((u) => ({ user: u }))],
+    },
+  });
+});
+
