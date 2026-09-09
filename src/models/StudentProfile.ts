@@ -1,7 +1,7 @@
 import mongoose, { Schema, Document } from 'mongoose';
 import { IStudentProfile, StudentType } from '../types';
 
-export interface IStudentProfileDocument extends IStudentProfile, Document {}
+export interface IStudentProfileDocument extends IStudentProfile, Document { }
 
 const studentProfileSchema = new Schema<any>(
   {
@@ -10,7 +10,7 @@ const studentProfileSchema = new Schema<any>(
     rollNumber: { type: String, required: true, unique: true, trim: true },
     studentType: { type: String, enum: Object.values(StudentType), required: true },
     department: { type: String, required: true, trim: true },
-researchArea: { type: String, default: '', trim: true },
+    researchArea: { type: String, default: '', trim: true },
     admissionDate: { type: Date, required: true },
     requiredCredits: { type: Number, default: 12, min: 0 },
     profilePhoto: { type: String },
