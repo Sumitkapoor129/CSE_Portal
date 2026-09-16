@@ -8,6 +8,7 @@ import { PageHeader } from '../../components/shared/PageHeader';
 import { QueryError } from '../../components/shared/QueryError';
 import { DetailRow } from '../../components/shared/DetailRow';
 import { Alert } from '../../components/ui/Alert';
+import { Avatar } from '../../components/ui/Avatar';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
@@ -75,6 +76,13 @@ export function StudentProfile(): JSX.Element {
       {!loading && !error && data && (
         <div className="space-y-6">
           <Card>
+            <div className="mb-6 flex items-center gap-4">
+              <Avatar name={data.user.name} photo={data.profilePhoto ?? null} size="lg" />
+              <div className="min-w-0">
+                <h2 className="truncate text-lg font-semibold text-gray-900">{data.user.name}</h2>
+                <p className="truncate text-sm text-gray-500">{data.user.email}</p>
+              </div>
+            </div>
             <dl className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
               <DetailRow label="Name" value={data.user.name} />
               <DetailRow label="Email" value={data.user.email} />

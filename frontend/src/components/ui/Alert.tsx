@@ -15,8 +15,12 @@ interface AlertProps {
 }
 
 export function Alert({ variant = 'info', children, onDismiss }: AlertProps) {
+  const liveRegion =
+    variant === 'error' ? { role: 'alert', 'aria-live': 'assertive' as const }
+    : variant === 'warning' ? { role: 'alert', 'aria-live': 'polite' as const }
+    : { role: 'status', 'aria-live': 'polite' as const };
   return (
-    <div role="alert" className={cn(alertVariants[variant], 'relative', onDismiss ? 'pr-8' : undefined)}>
+    <div {...liveRegion} className={cn(alertVariants[variant], 'relative', onDismiss ? 'pr-8' : undefined)}>
       {children}
       {onDismiss && (
         <button

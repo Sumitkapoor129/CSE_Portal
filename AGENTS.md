@@ -1,13 +1,53 @@
 # AGENTS.md
 
-## Agent Workflow
+## Mission
 
-- **Use subagents aggressively.** Delegate tasks to `task` tool with appropriate `subagent_type` (e.g. `general`, `explore`) rather than doing everything inline. Multiple subagents can run in parallel.
-- **Find and install skills before coding.** Use the `find-skills` skill or `skill` tool to discover relevant skills (frontend-design, test-driven-development, nodejs-backend-patterns, etc.) before tackling a task. Match task requirements to available skills and load them.
-- Run lint/typecheck/test after every change if applicable.
+Build production-ready software using a **subagent-driven workflow**.
+
+The main agent is the **orchestrator**. Delegate implementation, testing, review, security, database, and other specialized work to subagents when appropriate.
+
+Never skip required workflow steps to save time.
+
+---
+
+## 1. Git Rules
+
+### Main Branch
+
+`main` is always the stable branch.
+
+**Never:**
+- Implement features directly on `main`
+- Commit unfinished work to `main`
+- Merge untested code
+- Merge code with known Critical issues
+- Mix unrelated features
+
+### Branch Per Feature
+
+Every feature MUST have its own branch.
+
+```text
+feature/<feature-name>
 
 
-
+Follow this flow -
+1. Update main
+2. Create feature branch
+3. Analyze requirements
+4. Plan implementation
+5. Delegate to appropriate subagent
+6. Implement
+7. Test #1
+8. Fix failures
+9. Test #1 again until PASS
+10. Test #2
+11. Fix failures
+12. Repeat BOTH tests after meaningful fixes
+13. Code review
+14. Resolve Critical/Important issues
+15. Final verification
+16. Merge into main
 
 
 <!-- FRONT END FILE FROM HERE -->

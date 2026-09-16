@@ -5,6 +5,7 @@ import { Deadline } from '../models/Deadline';
 import { Notification } from '../models/Notification';
 import { StudentProfile } from '../models/StudentProfile';
 import { User } from '../models/User';
+import { Semester } from '../models/Semester';
 import { UserRole, StudentType } from '../types';
 import { sendNotificationEmail } from '../utils/email';
 
@@ -30,6 +31,7 @@ beforeEach(async () => {
   await Notification.deleteMany({});
   await StudentProfile.deleteMany({});
   await User.deleteMany({});
+  await Semester.deleteMany({});
   jest.clearAllMocks();
 
   const user = await User.create({
@@ -146,6 +148,56 @@ describe('deadlineService', () => {
         expect.stringContaining('Email Test'),
         expect.any(String)
       );
+    });
+
+    it('should notify only students in the matching semester for semester-scoped deadlines', async () => {
+      const creatorId = new mongoose.Types.ObjectId().toString();
+      const dueIn2 = new Date(Date.now() + 2 * DAY_MS);
+
+      const user2 = await User.create({
+        email: 'other@test.com',
+        password: 'hashedpw',
+        role: UserRole.STUDENT,
+        name: 'Other Student',
+        isActive: true,
+      });
+
+      await StudentProfile.create({
+        user: user2._id,
+        collegeId: 'DEAD002',
+        rollNumber: 'DEADR002',
+        studentType: StudentType.FULL_TIME,
+        department: 'CSE',
+        admissionDate: new Date('2024-01-01'),
+        requiredCredits: 12,
+        isProfileComplete: true,
+      });
+
+      await Semester.create({
+        student: studentId,
+        semesterNumber: 2,
+        academicYear: '2026-27',
+        startDate: new Date('2026-08-01'),
+        endDate: new Date('2027-01-31'),
+      });
+
+      await Deadline.create({
+        title: 'Sem 2 Deadline',
+        description: 'Only sem 2',
+        dueDate: dueIn2,
+        semester: 2,
+        createdBy: creatorId,
+        notificationSent: false,
+      });
+
+      const result = await checkDeadlines();
+      expect(result).toEqual({ checked: 1, notif: 1, emails: 1 });
+
+      const notifForUser1 = await Notification.findOne({ user: userId });
+      expect(notifForUser1).not.toBeNull();
+
+      const notifForUser2 = await Notification.findOne({ user: user2._id });
+      expect(notifForUser2).toBeNull();
     });
   });
 });

@@ -1,0 +1,578 @@
+﻿﻿diff --git a/frontend/src/App.tsx b/frontend/src/App.tsx
+index 8d875fc..88d5427 100644
+--- a/frontend/src/App.tsx
++++ b/frontend/src/App.tsx
+@@ -20,6 +20,7 @@ const StudentEvents = lazy(() => import('./pages/student/StudentEvents'));
+ const StudentDeadlines = lazy(() => import('./pages/student/StudentDeadlines'));
+ const StudentDocuments = lazy(() => import('./pages/student/StudentDocuments'));
+ const StudentNotifications = lazy(() => import('./pages/student/StudentNotifications'));
++const StudentOnboarding = lazy(() => import('./pages/student/StudentOnboarding'));
+ const SupervisorDashboard = lazy(() => import('./pages/supervisor/SupervisorDashboard'));
+ const StudentList = lazy(() => import('./pages/supervisor/StudentList'));
+ const StudentDetail = lazy(() => import('./pages/supervisor/StudentDetail'));
+@@ -67,6 +68,7 @@ export default function App() {
+                     <Route path="deadlines" element={<StudentDeadlines />} />
+                     <Route path="documents" element={<StudentDocuments />} />
+                     <Route path="notifications" element={<StudentNotifications />} />
++                    <Route path="complete-profile" element={<StudentOnboarding />} />
+                   </Route>
+                   <Route path="/supervisor" element={<ProtectedRoute roles={['supervisor']} />}>
+                     <Route index element={<SupervisorDashboard />} />
+diff --git a/frontend/src/api/auth.ts b/frontend/src/api/auth.ts
+index 100236e..4152485 100644
+--- a/frontend/src/api/auth.ts
++++ b/frontend/src/api/auth.ts
+@@ -1,6 +1,11 @@
+ import { apiFetch } from './client';
+ import type { AuthUser } from '../types';
+ 
++export interface AuthTokens {
++  accessToken: string;
++  refreshToken: string;
++}
++
+ export interface LoginPayload {
+   email: string;
+   password: string;
+@@ -18,17 +23,23 @@ export interface RegisterPayload {
+ 
+ export const authApi = {
+   login(email: string, password: string) {
+-    return apiFetch<{ token: string; user: AuthUser }>('/auth/login', {
++    return apiFetch<AuthTokens & { user: AuthUser }>('/auth/login', {
+       method: 'POST',
+       body: { email, password },
+     });
+   },
+   register(payload: RegisterPayload) {
+-    return apiFetch<{ token: string; user: AuthUser; message: string }>('/auth/register', {
++    return apiFetch<AuthTokens & { user: AuthUser; message: string }>('/auth/register', {
+       method: 'POST',
+       body: payload,
+     });
+   },
++  logout(refreshToken: string) {
++    return apiFetch<{ message: string }>('/auth/logout', {
++      method: 'POST',
++      body: { refreshToken },
++    });
++  },
+   verifyOtp(email: string, otp: string) {
+     return apiFetch<{ message: string }>('/auth/verify-otp', {
+       method: 'POST',
+diff --git a/frontend/src/api/client.test.ts b/frontend/src/api/client.test.ts
+index 395a8dc..19943ef 100644
+--- a/frontend/src/api/client.test.ts
++++ b/frontend/src/api/client.test.ts
+@@ -1,6 +1,6 @@
+ // @vitest-environment jsdom
+ import { afterEach, describe, expect, it, vi } from 'vitest';
+-import { apiFetch, ApiError, clearStoredToken, setStoredToken, TOKEN_KEY } from './client';
++import { apiFetch, ApiError, clearStoredToken, REFRESH_KEY, setStoredToken, TOKEN_KEY } from './client';
+ 
+ function mockFetchOnce(status: number, json: unknown) {
+   globalThis.fetch = vi.fn().mockResolvedValue({
+@@ -57,4 +57,37 @@ describe('apiFetch', () => {
+     expect(dispatched).toHaveLength(1);
+     window.removeEventListener('auth:unauthorized', handler);
+   });
++
++  it('refreshes once on 401 then retries, using stored refresh token', async () => {
++    setStoredToken('expired.access');
++    localStorage.setItem(REFRESH_KEY, 'valid.refresh');
++    const calls = vi
++      .fn()
++      .mockResolvedValueOnce({ ok: false, status: 401, json: async () => ({ message: 'Invalid or expired token' }) })
++      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ success: true, data: { accessToken: 'new.access', refreshToken: 'new.refresh' } }) })
++      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ success: true, data: { ok: 1 } }) });
++    globalThis.fetch = calls as unknown as typeof fetch;
++    await apiFetch<{ ok: number }>('/me');
++    expect(localStorage.getItem(TOKEN_KEY)).toBe('new.access');
++    expect(localStorage.getItem(REFRESH_KEY)).toBe('new.refresh');
++    const authHeaders = calls.mock.calls.map((c) => (c[1] as RequestInit).headers);
++    expect(authHeaders[authHeaders.length - 1]).toEqual(expect.objectContaining({ Authorization: 'Bearer new.access' }));
++  });
++
++  it('clears tokens and dispatches auth:unauthorized when refresh fails', async () => {
++    setStoredToken('expired.access');
++    localStorage.setItem(REFRESH_KEY, 'dead.refresh');
++    const calls = vi.fn()
++      .mockResolvedValueOnce({ ok: false, status: 401, json: async () => ({ message: 'Invalid or expired token' }) })
++      .mockResolvedValueOnce({ ok: false, status: 401, json: async () => ({ message: 'Session expired' }) });
++    globalThis.fetch = calls as unknown as typeof fetch;
++    const dispatched: unknown[] = [];
++    const handler = (e: Event) => dispatched.push(e);
++    window.addEventListener('auth:unauthorized', handler);
++    await expect(apiFetch('/me')).rejects.toThrow(ApiError);
++    expect(localStorage.getItem(TOKEN_KEY)).toBeNull();
++    expect(localStorage.getItem(REFRESH_KEY)).toBeNull();
++    expect(dispatched).toHaveLength(1);
++    window.removeEventListener('auth:unauthorized', handler);
++  });
+ });
+diff --git a/frontend/src/api/client.ts b/frontend/src/api/client.ts
+index 627e8db..2ac49e3 100644
+--- a/frontend/src/api/client.ts
++++ b/frontend/src/api/client.ts
+@@ -1,24 +1,33 @@
+ export const TOKEN_KEY = 'cse_portal_token';
++export const REFRESH_KEY = 'cse_portal_refresh';
+ 
+ export class ApiError extends Error {
+   status: number;
+-  constructor(message: string, status: number) {
++  fields?: Record<string, string>;
++  constructor(message: string, status: number, fields?: Record<string, string>) {
+     super(message);
+     this.name = 'ApiError';
+     this.status = status;
++    this.fields = fields;
+   }
+ }
+ 
+ export function getStoredToken(): string | null {
+   return localStorage.getItem(TOKEN_KEY);
+ }
+-
+ export function setStoredToken(token: string): void {
+   localStorage.setItem(TOKEN_KEY, token);
+ }
+-
++export function getStoredRefreshToken(): string | null {
++  return localStorage.getItem(REFRESH_KEY);
++}
+ export function clearStoredToken(): void {
+   localStorage.removeItem(TOKEN_KEY);
++  localStorage.removeItem(REFRESH_KEY);
++}
++export function setStoredTokens(access: string, refresh: string): void {
++  localStorage.setItem(TOKEN_KEY, access);
++  localStorage.setItem(REFRESH_KEY, refresh);
+ }
+ 
+ export interface ApiEnvelope<T> {
+@@ -35,10 +44,33 @@ interface FetchOptions {
+ 
+ const API_URL = import.meta.env.VITE_API_URL ?? '/api';
+ 
+-export async function apiFetch<T>(
+-  path: string,
+-  options: FetchOptions = {}
+-): Promise<T> {
++let refreshPromise: Promise<string | null> | null = null;
++
++async function refreshAccessToken(): Promise<string | null> {
++  if (refreshPromise) return refreshPromise;
++  refreshPromise = (async () => {
++    const refresh = getStoredRefreshToken();
++    if (!refresh) return null;
++    try {
++      const res = await fetch(`${API_URL}/auth/refresh`, {
++        method: 'POST',
++        headers: { 'Content-Type': 'application/json' },
++        body: JSON.stringify({ refreshToken: refresh }),
++      });
++      if (!res.ok) return null;
++      const json = (await res.json()) as { success: boolean; data: { accessToken: string; refreshToken: string } };
++      setStoredTokens(json.data.accessToken, json.data.refreshToken);
++      return json.data.accessToken;
++    } catch {
++      return null;
++    }
++  })();
++  return refreshPromise.finally(() => {
++    refreshPromise = null;
++  });
++}
++
++async function doFetch<T>(path: string, options: FetchOptions, canRefresh: boolean): Promise<T> {
+   const { method = 'GET', body, query } = options;
+ 
+   const url = new URL(`${API_URL}${path}`, window.location.origin);
+@@ -80,13 +112,26 @@ export async function apiFetch<T>(
+       json && typeof json === 'object' && 'message' in json && typeof (json as { message?: unknown }).message === 'string'
+         ? (json as { message: string }).message
+         : `Request failed (${res.status}).`;
++    const fields =
++      json && typeof json === 'object' && 'fields' in json
++        ? (json as { fields?: Record<string, string> }).fields
++        : undefined;
++
++    if (res.status === 401 && canRefresh && !path.startsWith('/auth/')) {
++      const fresh = await refreshAccessToken();
++      if (fresh) return doFetch(path, options, false); // exactly one retry
++    }
+     if (res.status === 401) {
+       clearStoredToken();
+       window.dispatchEvent(new CustomEvent('auth:unauthorized'));
+     }
+-    throw new ApiError(message, res.status);
++    throw new ApiError(message, res.status, fields);
+   }
+ 
+   const envelope = json as ApiEnvelope<T> | null;
+   return envelope?.data as T;
++}
++
++export async function apiFetch<T>(path: string, options: FetchOptions = {}): Promise<T> {
++  return doFetch(path, options, true);
+ }
+\ No newline at end of file
+diff --git a/frontend/src/api/student.ts b/frontend/src/api/student.ts
+index f2eaffd..146a730 100644
+--- a/frontend/src/api/student.ts
++++ b/frontend/src/api/student.ts
+@@ -11,6 +11,7 @@ import type {
+   Notification,
+   Semester,
+   StudentDashboardData,
++  StudentProfileUpdate,
+   StudentProfileView,
+   Thesis,
+   TimelineItem,
+@@ -19,7 +20,7 @@ import type {
+ export const studentApi = {
+   getDashboard: () => apiFetch<StudentDashboardData>('/student/dashboard'),
+   getProfile: () => apiFetch<StudentProfileView>('/student/profile'),
+-  updateProfile: (payload: { name?: string; researchArea?: string; profilePhoto?: string }) =>
++  updateProfile: (payload: StudentProfileUpdate) =>
+     apiFetch<StudentProfileView>('/student/profile', { method: 'PUT', body: payload }),
+   getSemesters: () => apiFetch<Semester[]>('/student/semesters'),
+   createSemester: (payload: { semesterNumber: number; academicYear: string; startDate: string; endDate: string }) =>
+diff --git a/frontend/src/components/layout/NavList.tsx b/frontend/src/components/layout/NavList.tsx
+index e291a7a..6bd5700 100644
+--- a/frontend/src/components/layout/NavList.tsx
++++ b/frontend/src/components/layout/NavList.tsx
+@@ -2,14 +2,14 @@ import { NavLink } from 'react-router-dom';
+ import type { JSX } from 'react';
+ import { useAuth } from '../../context/AuthContext';
+ import { cn } from '../../utils/cn';
+-import { NAV_ITEMS, NAV_LINK_ACTIVE, NAV_LINK_BASE, NAV_LINK_INACTIVE, isNavIndex } from './navConfig';
++import { getNavItemsForRole, NAV_LINK_ACTIVE, NAV_LINK_BASE, NAV_LINK_INACTIVE, isNavIndex } from './navConfig';
+ 
+ export function NavList({ onNavigate }: { onNavigate?: () => void }): JSX.Element {
+   const { user } = useAuth();
+ 
+   if (!user) return <></>;
+ 
+-  const items = NAV_ITEMS[user.role];
++  const items = getNavItemsForRole(user);
+ 
+   return (
+     <nav aria-label="Main navigation" className="flex-1 overflow-y-auto px-3 py-4">
+diff --git a/frontend/src/components/layout/navConfig.ts b/frontend/src/components/layout/navConfig.ts
+index 58d7abf..dfda18b 100644
+--- a/frontend/src/components/layout/navConfig.ts
++++ b/frontend/src/components/layout/navConfig.ts
+@@ -37,6 +37,14 @@ export const NAV_ITEMS: Record<UserRole, NavItem[]> = {
+   ],
+ };
+ 
++export function getNavItemsForRole(user: { role: UserRole; isProfileComplete?: boolean }): NavItem[] {
++  const items = [...NAV_ITEMS[user.role]];
++  if (user.role === 'student' && user.isProfileComplete === false) {
++    items.unshift({ to: '/student/complete-profile', label: 'Complete Profile' });
++  }
++  return items;
++}
++
+ export const NAV_LINK_BASE = 'flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors';
+ export const NAV_LINK_ACTIVE = 'bg-blue-50 text-blue-700 font-medium';
+ export const NAV_LINK_INACTIVE = 'text-gray-600 hover:bg-gray-100 hover:text-gray-900';
+diff --git a/frontend/src/context/AuthContext.tsx b/frontend/src/context/AuthContext.tsx
+index b0003bf..364d782 100644
+--- a/frontend/src/context/AuthContext.tsx
++++ b/frontend/src/context/AuthContext.tsx
+@@ -1,6 +1,6 @@
+ import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+ import { authApi } from '../api/auth';
+-import { clearStoredToken, getStoredToken, setStoredToken } from '../api/client';
++import { clearStoredToken, getStoredRefreshToken, getStoredToken, setStoredTokens } from '../api/client';
+ import type { AuthUser } from '../types';
+ 
+ interface AuthContextValue {
+@@ -24,7 +24,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
+     }
+     try {
+       const me = await authApi.me();
+-      setUser({ id: me.id, name: me.name, email: me.email, role: me.role, isActive: me.isActive });
++      setUser({ id: me.id, name: me.name, email: me.email, role: me.role, isActive: me.isActive, profilePhoto: me.profilePhoto ?? null, isProfileComplete: me.isProfileComplete });
+     } catch {
+       clearStoredToken();
+       setUser(null);
+@@ -43,12 +43,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
+ 
+   const login = useCallback(async (email: string, password: string) => {
+     const res = await authApi.login(email, password);
+-    setStoredToken(res.token);
++    setStoredTokens(res.accessToken, res.refreshToken);
+     setUser(res.user);
+     return res.user;
+   }, []);
+ 
+   const logout = useCallback(() => {
++    const refresh = getStoredRefreshToken();
++    if (refresh) authApi.logout(refresh).catch(() => undefined);
+     clearStoredToken();
+     setUser(null);
+   }, []);
+diff --git a/frontend/src/pages/student/StudentOnboarding.tsx b/frontend/src/pages/student/StudentOnboarding.tsx
+new file mode 100644
+index 0000000..6620cba
+--- /dev/null
++++ b/frontend/src/pages/student/StudentOnboarding.tsx
+@@ -0,0 +1,212 @@
++import { useState } from 'react';
++import type { FormEvent, JSX } from 'react';
++import { useNavigate } from 'react-router-dom';
++import { useAuth } from '../../context/AuthContext';
++import { studentApi } from '../../api/student';
++import { PageHeader } from '../../components/shared/PageHeader';
++import { Alert } from '../../components/ui/Alert';
++import { Button } from '../../components/ui/Button';
++import { Card } from '../../components/ui/Card';
++import { Input } from '../../components/ui/Input';
++import { Select } from '../../components/ui/Select';
++
++const STEPS = ['Personal', 'Academics', 'Contact'] as const;
++
++export interface OnboardingForm {
++  profilePhoto: string;
++  dateOfBirth: string;
++  gender: string;
++  bloodGroup: string;
++  category: string;
++  lastDegree: string;
++  institution: string;
++  graduationYear: string;
++  qualification: string;
++  researchArea: string;
++  phone: string;
++  address: string;
++}
++
++const emptyForm: OnboardingForm = {
++  profilePhoto: '',
++  dateOfBirth: '',
++  gender: '',
++  bloodGroup: '',
++  category: '',
++  lastDegree: '',
++  institution: '',
++  graduationYear: '',
++  qualification: '',
++  researchArea: '',
++  phone: '',
++  address: '',
++};
++
++const GENDER_OPTIONS = [{ value: '', label: 'Select gender' }, { value: 'Female', label: 'Female' }, { value: 'Male', label: 'Male' }, { value: 'Other', label: 'Other' }];
++const BLOOD_GROUP_OPTIONS = [{ value: '', label: 'Select blood group' }, { value: 'A+', label: 'A+' }, { value: 'A-', label: 'A-' }, { value: 'B+', label: 'B+' }, { value: 'B-', label: 'B-' }, { value: 'AB+', label: 'AB+' }, { value: 'AB-', label: 'AB-' }, { value: 'O+', label: 'O+' }, { value: 'O-', label: 'O-' }];
++const CATEGORY_OPTIONS = [{ value: '', label: 'Select category' }, { value: 'General', label: 'General' }, { value: 'OBC', label: 'OBC' }, { value: 'SC', label: 'SC' }, { value: 'ST', label: 'ST' }, { value: 'EWS', label: 'EWS' }];
++
++export function StudentOnboarding(): JSX.Element {
++  const navigate = useNavigate();
++  const { reload } = useAuth();
++
++  const [step, setStep] = useState(0);
++  const [form, setForm] = useState<OnboardingForm>(emptyForm);
++  const [errors, setErrors] = useState<Record<string, string>>({});
++  const [serverError, setServerError] = useState<string | null>(null);
++  const [submitting, setSubmitting] = useState(false);
++
++  const setField = (field: keyof OnboardingForm) => (event: { target: { value: string } }) => {
++    setForm((prev) => ({ ...prev, [field]: event.target.value }));
++    if (errors[field]) setErrors((prev) => ({ ...prev, [field]: '' }));
++    if (serverError) setServerError(null);
++  };
++
++  const stepValid = (): boolean => {
++    const next: Record<string, string> = {};
++    if (step === 0) {
++      if (!form.dateOfBirth) next.dateOfBirth = 'Date of birth is required.';
++      if (!form.gender) next.gender = 'Gender is required.';
++      if (!form.bloodGroup) next.bloodGroup = 'Blood group is required.';
++      if (!form.category) next.category = 'Category is required.';
++    } else if (step === 1) {
++      if (!form.lastDegree) next.lastDegree = 'Last degree is required.';
++      if (!form.institution) next.institution = 'Institution is required.';
++      const year = Number(form.graduationYear);
++      if (!form.graduationYear) next.graduationYear = 'Graduation year is required.';
++      else if (!Number.isInteger(year) || year < 1950 || year > new Date().getFullYear()) {
++        next.graduationYear = 'Enter a valid graduation year.';
++      }
++    } else {
++      if (!form.phone) next.phone = 'Phone number is required.';
++    }
++    setErrors(next);
++    return Object.keys(next).length === 0;
++  };
++
++  const handleNext = () => {
++    if (stepValid()) setStep((prev) => Math.min(prev + 1, STEPS.length - 1));
++  };
++
++  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
++    event.preventDefault();
++    if (submitting || !stepValid()) return;
++    setSubmitting(true);
++    setServerError(null);
++    try {
++      await studentApi.updateProfile({
++        profilePhoto: form.profilePhoto.trim() || undefined,
++        dateOfBirth: form.dateOfBirth,
++        gender: form.gender,
++        bloodGroup: form.bloodGroup,
++        category: form.category,
++        lastDegree: form.lastDegree,
++        institution: form.institution,
++        graduationYear: Number(form.graduationYear),
++        qualification: form.qualification.trim() || undefined,
++        researchArea: form.researchArea.trim() || undefined,
++        phone: form.phone.trim(),
++        address: form.address.trim() || undefined,
++      });
++      await reload();
++      navigate('/student/profile', { replace: true });
++    } catch (err) {
++      setSubmitting(false);
++      setServerError(err instanceof Error ? err.message : 'Unable to save your profile. Please try again.');
++    }
++  };
++
++  const stepFields: Record<number, { label: string; id: string; field: keyof OnboardingForm; placeholder?: string }[]> = {
++    0: [
++      { label: 'Date of Birth', id: 'ob-dob', field: 'dateOfBirth', placeholder: '2000-01-15' },
++      { label: 'Profile Photo URL', id: 'ob-photo', field: 'profilePhoto', placeholder: 'https://example.com/photo.jpg' },
++    ],
++    1: [
++      { label: 'Last Degree', id: 'ob-degree', field: 'lastDegree', placeholder: 'e.g. M.Tech' },
++      { label: 'Institution', id: 'ob-institution', field: 'institution', placeholder: 'e.g. NIT Jamshedpur' },
++      { label: 'Graduation Year', id: 'ob-year', field: 'graduationYear', placeholder: 'e.g. 2022' },
++      { label: 'Qualification / Score', id: 'ob-qual', field: 'qualification', placeholder: 'e.g. CGPA 9.2' },
++      { label: 'Research Area', id: 'ob-research', field: 'researchArea', placeholder: 'e.g. Machine Learning' },
++    ],
++    2: [
++      { label: 'Phone', id: 'ob-phone', field: 'phone', placeholder: 'e.g. 98765 43210' },
++      { label: 'Address', id: 'ob-address', field: 'address', placeholder: 'City, State' },
++    ],
++  };
++
++  return (
++    <>
++      <PageHeader
++        title="Complete your profile"
++        description="Tell us a bit more so your department record is complete."
++      />
++
++      <Card>
++        <ol className="mb-6 flex items-center gap-2 text-sm" aria-label="Progress">
++          {STEPS.map((label, index) => (
++            <li key={label} className="flex items-center gap-2">
++              <span
++                className={
++                  index === step
++                    ? 'rounded-full bg-blue-600 px-2.5 py-0.5 text-xs font-medium text-white'
++                    : 'rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600'
++                }
++              >
++                {index + 1}
++              </span>
++              <span className={index === step ? 'font-medium text-gray-900' : 'text-gray-500'}>{label}</span>
++              {index < STEPS.length - 1 && <span className="text-gray-300">┬À</span>}
++            </li>
++          ))}
++        </ol>
++
++        <form onSubmit={handleSubmit} className="space-y-4" noValidate>
++          {serverError && <Alert variant="error">{serverError}</Alert>}
++
++          {step === 0 && (
++            <div className="grid gap-4 sm:grid-cols-2">
++              <Input id="ob-dob" label="Date of Birth" type="date" value={form.dateOfBirth} onChange={setField('dateOfBirth')} error={errors.dateOfBirth} />
++              <Input id="ob-photo" label="Profile Photo URL" type="url" value={form.profilePhoto} onChange={setField('profilePhoto')} error={errors.profilePhoto} placeholder="https://example.com/photo.jpg" />
++              <Select id="ob-gender" label="Gender" value={form.gender} onChange={setField('gender')} error={errors.gender} options={GENDER_OPTIONS} />
++              <Select id="ob-blood" label="Blood Group" value={form.bloodGroup} onChange={setField('bloodGroup')} error={errors.bloodGroup} options={BLOOD_GROUP_OPTIONS} />
++              <Select id="ob-category" label="Category" value={form.category} onChange={setField('category')} error={errors.category} options={CATEGORY_OPTIONS} />
++            </div>
++          )}
++
++          {step === 1 && (
++            <div className="grid gap-4 sm:grid-cols-2">
++              {stepFields[1].map(({ label, id, field, placeholder }) => (
++                <Input key={id} id={id} label={label} value={String(form[field])} onChange={setField(field)} error={errors[field]} placeholder={placeholder} />
++              ))}
++            </div>
++          )}
++
++          {step === 2 && (
++            <div className="grid gap-4 sm:grid-cols-2">
++              {stepFields[2].map(({ label, id, field, placeholder }) => (
++                <Input key={id} id={id} label={label} value={String(form[field])} onChange={setField(field)} error={errors[field]} placeholder={placeholder} />
++              ))}
++            </div>
++          )}
++
++          <div className="flex items-center justify-between pt-2">
++            <Button type="button" variant="secondary" onClick={() => (step === 0 ? navigate('/student') : setStep((prev) => prev - 1))} disabled={submitting}>
++              {step === 0 ? 'Skip for now' : 'Back'}
++            </Button>
++            {step < STEPS.length - 1 ? (
++              <Button type="button" onClick={handleNext}>
++                Next
++              </Button>
++            ) : (
++              <Button type="submit" disabled={submitting}>
++                {submitting ? 'SavingÔÇª' : 'Save profile'}
++              </Button>
++            )}
++          </div>
++        </form>
++      </Card>
++    </>
++  );
++}
++
++export default StudentOnboarding;
+\ No newline at end of file
+diff --git a/frontend/src/types/index.ts b/frontend/src/types/index.ts
+index e937784..8047292 100644
+--- a/frontend/src/types/index.ts
++++ b/frontend/src/types/index.ts
+@@ -15,6 +15,24 @@ export interface AuthUser {
+   email: string;
+   role: UserRole;
+   isActive?: boolean;
++  profilePhoto?: string | null;
++  isProfileComplete?: boolean;
++}
++
++export interface StudentProfileUpdate {
++  name?: string;
++  researchArea?: string;
++  profilePhoto?: string;
++  dateOfBirth?: string;
++  gender?: string;
++  bloodGroup?: string;
++  category?: string;
++  phone?: string;
++  address?: string;
++  lastDegree?: string;
++  institution?: string;
++  graduationYear?: number;
++  qualification?: string;
+ }
+ 
+ export interface Pagination {
+diff --git a/frontend/vite.config.ts b/frontend/vite.config.ts
+index fc46cc5..a0eb0aa 100644
+--- a/frontend/vite.config.ts
++++ b/frontend/vite.config.ts
+@@ -16,6 +16,6 @@ export default defineConfig({
+   },
+   test: {
+     environment: 'node',
+-    include: ['src/**/*.test.ts'],
++    include: ['src/**/*.test.{ts,tsx}'],
+   },
+ });

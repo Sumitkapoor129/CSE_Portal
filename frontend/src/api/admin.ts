@@ -22,7 +22,7 @@ import type {
 
 export const adminApi = {
   getDashboard: () => apiFetch<AdminDashboardData>('/admin/dashboard'),
-  listStudents: (params: { search?: string; studentType?: string; department?: string; page?: number; limit?: number } = {}) =>
+  listStudents: (params: { search?: string; studentType?: string; department?: string; page?: number; limit?: number; fields?: string } = {}) =>
     apiFetch<{ students: StudentProfileView[]; pagination: Pagination }>('/admin/students', { query: params }),
   createStudent: (payload: AdminCreateStudent) =>
     apiFetch<{ user: AuthUser; profile: StudentProfileView }>('/admin/students', { method: 'POST', body: payload }),
@@ -30,7 +30,7 @@ export const adminApi = {
     apiFetch<StudentProfileView>(`/admin/students/${id}`, { method: 'PUT', body: payload }),
   toggleStudentActive: (userId: string) =>
     apiFetch<{ id: string; isActive: boolean }>(`/admin/students/${userId}/toggle-active`, { method: 'PUT' }),
-  listFaculty: (params: { search?: string; department?: string; page?: number; limit?: number } = {}) =>
+  listFaculty: (params: { search?: string; department?: string; page?: number; limit?: number; fields?: string } = {}) =>
     apiFetch<{ faculty: FacultyView[]; pagination: Pagination }>('/admin/faculty', { query: params }),
   createFaculty: (payload: AdminCreateFaculty) =>
     apiFetch<{ user: AuthUser; profile: FacultyView }>('/admin/faculty', { method: 'POST', body: payload }),
@@ -59,7 +59,7 @@ export const adminApi = {
   deleteForm: (id: string) => apiFetch<{ message: string }>(`/admin/forms/${id}`, { method: 'DELETE' }),
   listDeadlines: (params: { page?: number; limit?: number } = {}) =>
     apiFetch<{ deadlines: Deadline[]; pagination: Pagination }>('/admin/deadlines', { query: params }),
-  createDeadline: (payload: DeadlineFields) =>
+  createDeadline: (payload: Omit<DeadlineFields, 'semester'> & { semester?: number }) =>
     apiFetch<Deadline>('/admin/deadlines', { method: 'POST', body: payload }),
   globalSearch: (q: string) =>
     apiFetch<{ students: unknown[]; faculty: unknown[] }>('/admin/search', { query: { q } }),

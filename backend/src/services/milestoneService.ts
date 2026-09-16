@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import { Milestone } from '../models/Milestone';
 import { MilestoneKey, MilestoneStatus } from '../types';
+import { AppError } from '../middleware/errorHandler';
 
 interface MilestoneSeed {
   key: MilestoneKey;
@@ -54,12 +55,12 @@ export const updateMilestone = async (
 ) => {
   const milestone = await Milestone.findById(milestoneId);
   if (!milestone) {
-    throw new Error('Milestone not found');
+    throw new AppError('Milestone not found', 404);
   }
 
   if (updates.status !== undefined) {
     if (!Object.values(MilestoneStatus).includes(updates.status as MilestoneStatus)) {
-      throw new Error(`Invalid status: ${updates.status}`);
+      throw new AppError(`Invalid status: ${updates.status}`, 400);
     }
     milestone.status = updates.status as MilestoneStatus;
   }

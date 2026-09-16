@@ -135,8 +135,8 @@ export function SrcCommitteeManagement(): JSX.Element {
                 })),
               ]}
             />
-            <div>
-              <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500">Members</span>
+            <fieldset>
+              <legend className="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500">Members</legend>
               <div className="space-y-3">
                 {rows.map((row, index) => (
                   <div key={row.id} className="grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
@@ -164,6 +164,7 @@ export function SrcCommitteeManagement(): JSX.Element {
                       <Button
                         variant="secondary"
                         size="sm"
+                        aria-label={`Remove ${faculty.find((member) => member._id === row.faculty)?.user?.name ?? 'committee member'}`}
                         onClick={() => removeRow(index)}
                         disabled={rows.length === 1}
                       >
@@ -178,7 +179,7 @@ export function SrcCommitteeManagement(): JSX.Element {
                   Add member
                 </Button>
               </div>
-            </div>
+            </fieldset>
             <div className="flex justify-end">
               <Button type="submit" disabled={submitting}>
                 {submitting ? 'Creating…' : 'Create committee'}

@@ -16,6 +16,7 @@ interface SkeletonTableProps {
 export function SkeletonTable({ rows = 5, columns = 4 }: SkeletonTableProps) {
   return (
     <div role="status" aria-live="polite" className="w-full">
+      <span className="sr-only">Loading…</span>
       <div className="flex gap-4 border-b border-gray-200 px-4 pb-4 pt-4">
         {Array.from({ length: columns }, (_, index) => (
           <Skeleton key={index} className="h-4 flex-1" />
@@ -39,6 +40,7 @@ interface SkeletonCardsProps {
 export function SkeletonCards({ count = 3 }: SkeletonCardsProps) {
   return (
     <div role="status" aria-live="polite" className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      <span className="sr-only">Loading…</span>
       {Array.from({ length: count }, (_, index) => (
         <div key={index} className="rounded-lg border border-gray-200 bg-white p-6">
           <Skeleton className="h-4 w-1/3" />

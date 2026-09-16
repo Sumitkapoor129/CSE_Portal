@@ -18,7 +18,7 @@ const DEADLINE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000; // every 6 hours
 const app = express();
 
 app.use(helmet());
-app.use(cors({ origin: '*', credentials: true }));
+app.use(cors({ origin: env.CORS_ORIGINS ? env.CORS_ORIGINS.split(',').map(s => s.trim()) : true, credentials: true }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
@@ -52,7 +52,7 @@ const startDeadlineScheduler = () => {
 const start = async () => {
   await connectDB();
   await seedAdmin();
-  startDeadlineScheduler();
+  const schedulerInterval = startDeadlineScheduler();
 
   app.listen(env.PORT, () => {
     console.log(`Server running on port ${env.PORT}`);

@@ -2,8 +2,10 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { env } from '../config/env';
 import { UserRole, AuthRequest } from '../types';
+import { generateAccessToken } from '../utils/tokens';
+export { authenticate, authorize };
 
-export const authenticate = (req: AuthRequest, res: Response, next: NextFunction): void => {
+const authenticate = (req: AuthRequest, res: Response, next: NextFunction): void => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     res.status(401).json({ message: 'No token provided' });
@@ -12,11 +14,16 @@ export const authenticate = (req: AuthRequest, res: Response, next: NextFunction
 
   const token = authHeader.split(' ')[1];
   try {
-    const decoded = jwt.verify(token, env.JWT_SECRET) as {
+    const decoded = jwt.verify(token, env.JWT_SECRET, { algorithms: ['HS256'] }) as {
       id: string;
       role: UserRole;
       email: string;
+      type?: string;
     };
+    if (decoded.type && decoded.type !== 'access') {
+      res.status(401).json({ message: 'Invalid or expired token' });
+      return;
+    }
     req.user = decoded;
     next();
   } catch {
@@ -24,7 +31,7 @@ export const authenticate = (req: AuthRequest, res: Response, next: NextFunction
   }
 };
 
-export const authorize = (...roles: UserRole[]) => {
+const authorize = (...roles: UserRole[]) => {
   return (req: AuthRequest, res: Response, next: NextFunction): void => {
     if (!req.user) {
       res.status(401).json({ message: 'Not authenticated' });
@@ -36,14 +43,4 @@ export const authorize = (...roles: UserRole[]) => {
     }
     next();
   };
-};
-
-export const generateToken = (payload: {
-  id: string;
-  role: UserRole;
-  email: string;
-}): string => {
-  return jwt.sign(payload, env.JWT_SECRET, {
-    expiresIn: env.JWT_EXPIRES_IN,
-  } as jwt.SignOptions);
 };

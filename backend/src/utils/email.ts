@@ -18,7 +18,6 @@ export const sendEmail = async (
 ): Promise<void> => {
   if (!env.SMTP_USER) {
     console.log(`[EMAIL] To: ${to} | Subject: ${subject}`);
-    console.log(`[EMAIL] Body: ${html}`);
     return;
   }
 

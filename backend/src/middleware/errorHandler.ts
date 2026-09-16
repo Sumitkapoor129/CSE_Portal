@@ -1,19 +1,22 @@
 import { Request, Response, NextFunction } from 'express';
+import { env } from '../config/env';
 
 export class AppError extends Error {
   public statusCode: number;
   public isOperational: boolean;
+  public fields?: Record<string, string>;
 
-  constructor(message: string, statusCode: number) {
+  constructor(message: string, statusCode: number, fields?: Record<string, string>) {
     super(message);
     this.statusCode = statusCode;
     this.isOperational = true;
+    this.fields = fields;
     Error.captureStackTrace(this, this.constructor);
   }
 }
 
 export const errorHandler = (
-  err: Error,
+  err: Error & { name?: string },
   _req: Request,
   res: Response,
   _next: NextFunction
@@ -21,15 +24,21 @@ export const errorHandler = (
   if (err instanceof AppError) {
     res.status(err.statusCode).json({
       message: err.message,
-      ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
+      ...(err.fields ? { fields: err.fields } : {}),
+      ...(env.NODE_ENV === 'development' && { stack: err.stack }),
     });
+    return;
+  }
+
+  if (err.name === 'CastError') {
+    res.status(400).json({ message: 'Invalid id or value format' });
     return;
   }
 
   console.error('Unhandled error:', err);
   res.status(500).json({
     message: 'Internal server error',
-    ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
+    ...(env.NODE_ENV === 'development' && { stack: err.stack }),
   });
 };
 

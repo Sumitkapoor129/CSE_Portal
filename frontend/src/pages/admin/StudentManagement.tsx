@@ -6,18 +6,20 @@ import { useApi } from '../../hooks/useApi';
 import { adminApi } from '../../api/admin';
 import { PageHeader } from '../../components/shared/PageHeader';
 import { Alert } from '../../components/ui/Alert';
+import { Avatar } from '../../components/ui/Avatar';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
 import { Modal } from '../../components/ui/Modal';
+import { PasswordInput } from '../../components/ui/PasswordInput';
 import { Pagination } from '../../components/ui/Pagination';
 import { Select } from '../../components/ui/Select';
 import { SkeletonTable } from '../../components/ui/Skeleton';
 import { Table, TableCell, TableEmpty, TableRow } from '../../components/ui/Table';
 import { ConfirmModal } from '../../components/shared/ConfirmModal';
 import { QueryError } from '../../components/shared/QueryError';
-import { STUDENT_TYPE_LABELS, STUDENT_TYPE_OPTIONS } from '../../utils/constants';
+import { ACTIVE_STATUS_STYLE, INACTIVE_STATUS_STYLE, STUDENT_TYPE_LABELS, STUDENT_TYPE_OPTIONS } from '../../utils/constants';
 import type { StudentProfileView, StudentType } from '../../types';
 
 const EMPTY_CREATE_FORM = {
@@ -105,10 +107,8 @@ export function StudentManagement(): JSX.Element {
     setPage(1);
   };
 
-  const activeStyle =
-    'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-green-50 text-green-700 border border-green-200';
-  const inactiveStyle =
-    'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-gray-50 text-gray-700 border border-gray-200';
+  const activeStyle = ACTIVE_STATUS_STYLE;
+  const inactiveStyle = INACTIVE_STATUS_STYLE;
 
   const openCreate = () => {
     setCreateForm(EMPTY_CREATE_FORM);
@@ -294,6 +294,7 @@ export function StudentManagement(): JSX.Element {
         <Card title="Students" padded={false}>
           <Table
             columns={[
+              { key: 'photo', header: 'Photo' },
               { key: 'name', header: 'Name' },
               { key: 'rollNumber', header: 'Roll Number' },
               { key: 'collegeId', header: 'College ID' },
@@ -303,10 +304,13 @@ export function StudentManagement(): JSX.Element {
             ]}
           >
             {students.length === 0 ? (
-              <TableEmpty colSpan={6} message="No students found." />
+              <TableEmpty colSpan={7} message="No students found." />
             ) : (
               students.map((student) => (
                 <TableRow key={student._id}>
+                  <TableCell>
+                    <Avatar name={student.user?.name ?? '—'} photo={student.profilePhoto ?? null} size="sm" />
+                  </TableCell>
                   <TableCell className="font-medium text-gray-900">{student.user?.name ?? '—'}</TableCell>
                   <TableCell className="text-gray-700">{student.rollNumber}</TableCell>
                   <TableCell className="text-gray-700">{student.collegeId}</TableCell>
@@ -327,6 +331,7 @@ export function StudentManagement(): JSX.Element {
                       <Button
                         variant={student.user?.isActive === false ? 'primary' : 'danger'}
                         size="sm"
+                        aria-label={student.user?.isActive === false ? `Activate ${student.user?.name || 'student'}` : `Deactivate ${student.user?.name || 'student'}`}
                         onClick={() => {
                           setToggleError(null);
                           setConfirmStudent(student);
@@ -360,13 +365,13 @@ export function StudentManagement(): JSX.Element {
               onChange={(event) => setCreateForm({ ...createForm, email: event.target.value })}
               placeholder="student@nitjsr.ac.in"
             />
-            <Input
+            <PasswordInput
               id="create-password"
               label="Password"
-              type="password"
               value={createForm.password}
               onChange={(event) => setCreateForm({ ...createForm, password: event.target.value })}
               placeholder="Temporary password"
+              autoComplete="new-password"
             />
             <Input
               id="create-name"

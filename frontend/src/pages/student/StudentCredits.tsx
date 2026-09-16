@@ -5,6 +5,7 @@ import { useApi } from '../../hooks/useApi';
 import { studentApi } from '../../api/student';
 import { PageHeader } from '../../components/shared/PageHeader';
 import { QueryError } from '../../components/shared/QueryError';
+import { StatCard } from '../../components/shared/StatCard';
 import { Card } from '../../components/ui/Card';
 import { SkeletonCards, SkeletonTable } from '../../components/ui/Skeleton';
 import { Table, TableCell, TableEmpty, TableRow } from '../../components/ui/Table';
@@ -46,18 +47,9 @@ export function StudentCredits(): JSX.Element {
       {!loading && !error && (
         <div className="space-y-6">
           <div className="grid gap-4 sm:grid-cols-3">
-            <Card>
-              <p className="text-sm font-medium text-gray-500">Total earned</p>
-              <p className="mt-2 text-2xl font-semibold text-gray-900">{totalEarned}</p>
-            </Card>
-            <Card>
-              <p className="text-sm font-medium text-gray-500">Required</p>
-              <p className="mt-2 text-2xl font-semibold text-gray-900">{required ?? '—'}</p>
-            </Card>
-            <Card>
-              <p className="text-sm font-medium text-gray-500">Remaining</p>
-              <p className="mt-2 text-2xl font-semibold text-gray-900">{remaining ?? '—'}</p>
-            </Card>
+            <StatCard label="Total earned" value={totalEarned} sub="" />
+            <StatCard label="Required" value={required ?? '—'} sub="" />
+            <StatCard label="Remaining" value={remaining ?? '—'} sub="" />
           </div>
 
           <Card title="Credits by semester" padded={false}>

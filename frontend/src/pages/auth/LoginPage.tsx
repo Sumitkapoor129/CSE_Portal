@@ -5,6 +5,8 @@ import { useAuth } from '../../context/AuthContext';
 import { Alert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
+import { PasswordInput } from '../../components/ui/PasswordInput';
+import { applyServerError } from '../../utils/errors';
 
 interface FieldErrors {
   email?: string;
@@ -53,14 +55,14 @@ export function LoginPage(): JSX.Element {
     try {
       await login(email, password);
       navigate('/', { replace: true });
-    } catch {
+    } catch (err) {
       setSubmitting(false);
-      setServerError('Unable to log in. Please check your email and password.');
+      applyServerError(err, setFieldErrors, setServerError);
     }
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
+    <main className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
       <div className="w-full max-w-md rounded-lg border border-gray-200 bg-white p-8">
         <h1 className="text-xl font-semibold text-gray-900">Log in</h1>
         <p className="mt-1 text-sm text-gray-500">Sign in to your PhD Scholar Portal account.</p>
@@ -79,10 +81,9 @@ export function LoginPage(): JSX.Element {
             placeholder="you@example.com"
           />
 
-          <Input
+          <PasswordInput
             id="password"
             label="Password"
-            type="password"
             value={password}
             onChange={handlePasswordChange}
             error={fieldErrors.password}
@@ -101,7 +102,7 @@ export function LoginPage(): JSX.Element {
           </Link>
         </p>
       </div>
-    </div>
+    </main>
   );
 }
 

@@ -30,5 +30,8 @@ const eventSchema = new Schema<any>(
   { timestamps: true }
 );
 
+eventSchema.index({ organizer: 1, date: 1 });
+eventSchema.index({ 'participants.participant': 1, date: 1 });
+
 export const Event = mongoose.model<IEventDocument>('Event', eventSchema);
 

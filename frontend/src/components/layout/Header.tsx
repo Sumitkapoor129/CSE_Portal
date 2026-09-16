@@ -4,10 +4,12 @@ import { useNavigate } from 'react-router-dom';
 import { authApi } from '../../api/auth';
 import { useAuth } from '../../context/AuthContext';
 import { ROLE_LABELS } from '../../utils/constants';
+import { applyServerError } from '../../utils/errors';
 import { Alert } from '../ui/Alert';
+import { Avatar } from '../ui/Avatar';
 import { Button } from '../ui/Button';
-import { Input } from '../ui/Input';
 import { Modal } from '../ui/Modal';
+import { PasswordInput } from '../ui/PasswordInput';
 import { MobileNav } from './MobileNav';
 
 interface PasswordForm {
@@ -78,8 +80,6 @@ export function Header(): JSX.Element {
     };
   }, []);
 
-  const initials = user ? user.name.trim().split(/\s+/).map((part) => part[0]).slice(0, 2).join('').toUpperCase() : '';
-
   const handleFieldChange = (field: keyof PasswordForm) => (event: ChangeEvent<HTMLInputElement>) => {
     setForm((prev) => ({ ...prev, [field]: event.target.value }));
   };
@@ -139,9 +139,9 @@ export function Header(): JSX.Element {
       closeTimerRef.current = window.setTimeout(() => {
         closeChangePassword();
       }, 1400);
-    } catch {
+    } catch (err) {
       setSubmitting(false);
-      setPwError('Unable to change password. Please check your current password and try again.');
+      applyServerError(err, setFieldErrors, setPwError);
     }
   };
 
@@ -158,9 +158,7 @@ export function Header(): JSX.Element {
             aria-expanded={menuOpen}
             className="flex items-center gap-2 rounded-full p-1 transition-colors hover:bg-gray-100"
           >
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 text-sm font-semibold text-white">
-              {initials}
-            </div>
+            <Avatar name={user.name} photo={user.profilePhoto ?? null} size="sm" />
             <div className="hidden text-left sm:block">
               <p className="text-sm font-medium text-gray-900">{user.name}</p>
               <p className="text-xs text-gray-500">{ROLE_LABELS[user.role]}</p>
@@ -177,7 +175,7 @@ export function Header(): JSX.Element {
           </button>
 
           {menuOpen && (
-            <div ref={menuPanelRef} tabIndex={-1} className="absolute right-0 top-full mt-2 w-56 rounded-lg border border-gray-200 bg-white p-1 shadow-lg outline-none">
+            <div ref={menuPanelRef} tabIndex={-1} className="absolute right-0 top-full mt-2 max-w-[calc(100vw-2rem)] w-56 rounded-lg border border-gray-200 bg-white p-1 shadow-lg outline-none">
               <button
                 type="button"
                 onClick={openChangePassword}
@@ -201,29 +199,26 @@ export function Header(): JSX.Element {
         <form onSubmit={handleSubmit} className="space-y-4">
           {pwError && <Alert variant="error">{pwError}</Alert>}
           {pwSuccess && <Alert variant="success">{pwSuccess}</Alert>}
-          <Input
+          <PasswordInput
             id="current-password"
             label="Current Password"
-            type="password"
             value={form.currentPassword}
             onChange={handleFieldChange('currentPassword')}
             error={fieldErrors.currentPassword}
             autoComplete="current-password"
           />
-          <Input
+          <PasswordInput
             id="new-password"
             label="New Password"
-            type="password"
             value={form.newPassword}
             onChange={handleFieldChange('newPassword')}
             error={fieldErrors.newPassword}
             hint="At least 8 characters."
             autoComplete="new-password"
           />
-          <Input
+          <PasswordInput
             id="confirm-password"
             label="Confirm New Password"
-            type="password"
             value={form.confirmPassword}
             onChange={handleFieldChange('confirmPassword')}
             error={fieldErrors.confirmPassword}

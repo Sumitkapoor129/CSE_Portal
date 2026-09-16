@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react';
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { usePageTitle } from './hooks/usePageTitle';
 import { DashboardLayout } from './components/layout/DashboardLayout';
 import { ProtectedRoute } from './components/shared/ProtectedRoute';
 import { ErrorBoundary } from './components/shared/ErrorBoundary';
@@ -20,6 +21,7 @@ const StudentEvents = lazy(() => import('./pages/student/StudentEvents'));
 const StudentDeadlines = lazy(() => import('./pages/student/StudentDeadlines'));
 const StudentDocuments = lazy(() => import('./pages/student/StudentDocuments'));
 const StudentNotifications = lazy(() => import('./pages/student/StudentNotifications'));
+const StudentOnboarding = lazy(() => import('./pages/student/StudentOnboarding'));
 const SupervisorDashboard = lazy(() => import('./pages/supervisor/SupervisorDashboard'));
 const StudentList = lazy(() => import('./pages/supervisor/StudentList'));
 const StudentDetail = lazy(() => import('./pages/supervisor/StudentDetail'));
@@ -35,6 +37,51 @@ const DeadlineManagement = lazy(() => import('./pages/admin/DeadlineManagement')
 const EventManagement = lazy(() => import('./pages/admin/EventManagement'));
 const GlobalSearch = lazy(() => import('./pages/admin/GlobalSearch'));
 
+const ROUTE_TITLES: Record<string, string> = {
+  '/auth/login': 'Sign In',
+  '/auth/register': 'Register',
+  '/auth/verify-otp': 'Verify OTP',
+  '/student': 'Dashboard',
+  '/student/profile': 'Profile',
+  '/student/milestones': 'Milestones',
+  '/student/courses': 'My Courses',
+  '/student/credits': 'Credits',
+  '/student/thesis': 'Thesis',
+  '/student/events': 'Events',
+  '/student/deadlines': 'Deadlines',
+  '/student/documents': 'Documents',
+  '/student/notifications': 'Notifications',
+  '/student/complete-profile': 'Complete Profile',
+  '/supervisor': 'Dashboard',
+  '/supervisor/students': 'Assigned Students',
+  '/supervisor/approvals': 'Approvals',
+  '/supervisor/events': 'Events',
+  '/admin': 'Dashboard',
+  '/admin/students': 'Student Management',
+  '/admin/faculty': 'Faculty Management',
+  '/admin/assignments': 'Supervisor Assignments',
+  '/admin/src-committees': 'SRC Committee',
+  '/admin/forms': 'Form Builder',
+  '/admin/deadlines': 'Deadline Management',
+  '/admin/events': 'Event Management',
+  '/admin/search': 'Global Search',
+};
+
+function getRouteTitle(pathname: string): string {
+  for (const [path, title] of Object.entries(ROUTE_TITLES)) {
+    if (pathname === path || pathname.startsWith(path + '/')) return title;
+  }
+  if (pathname === '/dashboard') return 'Dashboard';
+  if (pathname === '/') return '';
+  return '';
+}
+
+function DocumentTitle() {
+  const { pathname } = useLocation();
+  usePageTitle(getRouteTitle(pathname));
+  return null;
+}
+
 function Root() {
   const { user } = useAuth();
   if (!user) return <Navigate to="/auth/login" replace />;
@@ -45,10 +92,11 @@ function Root() {
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <AuthProvider>
         <ErrorBoundary>
           <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+            <DocumentTitle />
             <Routes>
               <Route path="/" element={<Root />} />
               <Route path="/auth/login" element={<LoginPage />} />
@@ -67,6 +115,7 @@ export default function App() {
                     <Route path="deadlines" element={<StudentDeadlines />} />
                     <Route path="documents" element={<StudentDocuments />} />
                     <Route path="notifications" element={<StudentNotifications />} />
+                    <Route path="complete-profile" element={<StudentOnboarding />} />
                   </Route>
                   <Route path="/supervisor" element={<ProtectedRoute roles={['supervisor']} />}>
                     <Route index element={<SupervisorDashboard />} />

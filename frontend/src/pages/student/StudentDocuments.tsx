@@ -115,7 +115,7 @@ export function StudentDocuments(): JSX.Element {
                 { key: 'type', header: 'Type' },
                 { key: 'uploaded', header: 'Uploaded' },
                 { key: 'status', header: 'Status' },
-                { key: 'open', header: '' },
+                { key: 'open', header: 'Open' },
               ]}
             >
               {(documents ?? []).length === 0 ? (
@@ -149,7 +149,7 @@ export function StudentDocuments(): JSX.Element {
               columns={[
                 { key: 'name', header: 'Form' },
                 { key: 'type', header: 'Type' },
-                { key: 'open', header: '' },
+                { key: 'open', header: 'Open' },
               ]}
             >
               {(forms ?? []).length === 0 ? (

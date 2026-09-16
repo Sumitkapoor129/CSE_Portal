@@ -5,6 +5,7 @@ import { authApi } from '../../api/auth';
 import { Alert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
+import { applyServerError } from '../../utils/errors';
 import { required } from '../../utils/validators';
 
 interface FieldErrors {
@@ -56,14 +57,14 @@ export function VerifyOtpPage(): JSX.Element {
       await authApi.verifyOtp(email, otp);
       setSuccessNote('Account activated. Please log in.');
       setSubmitting(false);
-    } catch {
+    } catch (err) {
       setSubmitting(false);
-      setServerError('Unable to verify the OTP. Please check your code and try again.');
+      applyServerError(err, setFieldErrors, setServerError);
     }
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
+    <main className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
       <div className="w-full max-w-md rounded-lg border border-gray-200 bg-white p-8">
         <h1 className="text-xl font-semibold text-gray-900">Verify your email</h1>
         <p className="mt-1 text-sm text-gray-500">Enter the one-time password sent to your email.</p>
@@ -111,7 +112,7 @@ export function VerifyOtpPage(): JSX.Element {
           )}
         </form>
       </div>
-    </div>
+    </main>
   );
 }
 

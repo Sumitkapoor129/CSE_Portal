@@ -5,27 +5,31 @@ import { Supervisor } from '../models/Supervisor';
 import { FacultyProfile } from '../models/FacultyProfile';
 
 export const resolveUserIds = async (ids: string[]): Promise<string[]> => {
-  const resolved = new Set<string>();
+  const filtered = ids.filter(Boolean);
+  if (filtered.length === 0) return [];
 
-  for (const id of ids) {
-    if (!id) continue;
-    try {
-      const user = await User.findById(id).select('role').lean();
-      if (user && user.role === 'student') {
-        resolved.add(String(user._id));
-        continue;
-      }
+  const users = await User.find({ _id: { $in: filtered } }).select('role').lean();
+  const matchedUserIds = new Set<string>();
+  const matchedAsUser = new Set<string>();
 
-      const profile = await StudentProfile.findById(id).select('user').lean().catch(() => null);
-      if (profile && profile.user) {
-        resolved.add(String(profile.user));
-      }
-    } catch (err) {
-      continue;
+  for (const u of users) {
+    if (u.role === 'student') {
+      matchedUserIds.add(String(u._id));
+      matchedAsUser.add(String(u._id));
     }
   }
 
-  return Array.from(resolved);
+  const remaining = filtered.filter(id => !matchedAsUser.has(id));
+  if (remaining.length > 0) {
+    const profiles = await StudentProfile.find({ _id: { $in: remaining } }).select('user').lean();
+    for (const p of profiles) {
+      if (p.user) {
+        matchedUserIds.add(String(p.user));
+      }
+    }
+  }
+
+  return Array.from(matchedUserIds);
 };
 
 export const resolveParticipants = async (ids: string[]) => {
@@ -83,4 +87,9 @@ export const getEligibleStudentOptions = async (supervisorUserId: string) => {
   }
 
   return studentOptions;
+};
+
+export const getAssignedStudentUserIds = async (supervisorUserId: string): Promise<Set<string>> => {
+  const options = await getEligibleStudentOptions(supervisorUserId);
+  return new Set(options.map(o => o.userId));
 };

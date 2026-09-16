@@ -254,7 +254,7 @@ export function SupervisorEvents(): JSX.Element {
             onToggle={toggleParticipant}
           />
           <div className="flex flex-col gap-3 border-t border-gray-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-xs text-gray-400">Title, date, start, and end time are required.</p>
+            <p className="text-xs text-gray-600">Title, date, start, and end time are required.</p>
             <div className="flex justify-end gap-3">
               <Button type="button" variant="secondary" onClick={() => setModalOpen(false)}>
                 Cancel

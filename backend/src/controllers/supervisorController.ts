@@ -16,12 +16,13 @@ import { Milestone } from '../models/Milestone';
 import { authenticate, authorize } from '../middleware/auth';
 import { AppError, asyncHandler } from '../middleware/errorHandler';
 import { createAuditLog } from '../utils/audit';
-import { createNotification } from '../utils/notify';
-import { resolveParticipants, getEligibleStudentOptions } from '../utils/participants';
+import { createNotification, createBulkNotifications } from '../utils/notify';
+import { resolveParticipants, getEligibleStudentOptions, getAssignedStudentUserIds } from '../utils/participants';
 import { updateMilestone as updateMilestoneService } from '../services/milestoneService';
 import { sendNotificationEmail } from '../utils/email';
 import { computeTotalCredits } from '../services/creditService';
 import { UserRole, AuthRequest, ApprovalStatus, ThesisStatus } from '../types';
+import { escapeRegex } from '../utils/query';
 
 const getFacultyProfile = async (userId: string) => {
   const profile = await FacultyProfile.findOne({ user: userId });
@@ -42,28 +43,27 @@ export const getDashboard = asyncHandler(async (req: AuthRequest, res: Response)
 
   const assignedStudents = assignedStudentIds.length;
 
-  const pendingCourseApprovals = await StudentCourse.countDocuments({
-    student: { $in: assignedStudentIds },
-    status: ApprovalStatus.PENDING,
-  });
-
-  const pendingThesisApprovals = await Thesis.countDocuments({
-    student: { $in: assignedStudentIds },
-    status: ThesisStatus.SUBMITTED,
-  });
-
-  const pendingGeneralApprovals = await ApprovalRequest.countDocuments({
-    requester: { $in: assignedStudentIds },
-    status: ApprovalStatus.PENDING,
-  });
+  const [pendingCourseApprovals, pendingThesisApprovals, pendingGeneralApprovals, upcomingEvents] = await Promise.all([
+    StudentCourse.countDocuments({
+      student: { $in: assignedStudentIds },
+      status: ApprovalStatus.PENDING,
+    }),
+    Thesis.countDocuments({
+      student: { $in: assignedStudentIds },
+      status: ThesisStatus.SUBMITTED,
+    }),
+    ApprovalRequest.countDocuments({
+      requester: { $in: assignedStudentIds },
+      status: ApprovalStatus.PENDING,
+    }),
+    Event.countDocuments({
+      organizer: req.user!.id,
+      date: { $gte: new Date() },
+    }),
+  ]);
 
   const pendingApprovals =
     pendingCourseApprovals + pendingThesisApprovals + pendingGeneralApprovals;
-
-  const upcomingEvents = await Event.countDocuments({
-    organizer: req.user!.id,
-    date: { $gte: new Date() },
-  });
 
   res.status(200).json({
     success: true,
@@ -102,24 +102,24 @@ export const getAssignedStudents = asyncHandler(async (req: AuthRequest, res: Re
   const filter: Record<string, unknown> = { _id: { $in: assignedStudentIds } };
 
   if (rollNumber) {
-    filter.rollNumber = { $regex: rollNumber, $options: 'i' };
+    filter.rollNumber = { $regex: escapeRegex(rollNumber as string), $options: 'i' };
   }
   if (studentType) {
     filter.studentType = studentType;
   }
   if (researchArea) {
-    filter.researchArea = { $regex: researchArea, $options: 'i' };
+    filter.researchArea = { $regex: escapeRegex(researchArea as string), $options: 'i' };
+  }
+
+  if (name) {
+    const matchedUsers = await User.find({
+      name: { $regex: escapeRegex(name as string), $options: 'i' },
+    }).select('_id').lean();
+    const matchedUserIds = matchedUsers.map(u => u._id);
+    filter.user = { $in: matchedUserIds };
   }
 
   let studentProfiles = StudentProfile.find(filter).populate('user', 'name email');
-
-  if (name) {
-    studentProfiles = studentProfiles.populate({
-      path: 'user',
-      match: { name: { $regex: name, $options: 'i' } },
-      select: 'name email',
-    });
-  }
 
   if (semester) {
     studentProfiles = studentProfiles.populate({
@@ -134,16 +134,12 @@ export const getAssignedStudents = asyncHandler(async (req: AuthRequest, res: Re
 
   const students = await studentProfiles.skip(skip).limit(limitNum).lean();
 
-  const filteredStudents = name
-    ? students.filter((s) => s.user && (s.user as any).name)
-    : students;
-
   const total = await StudentProfile.countDocuments(filter);
 
   res.status(200).json({
     success: true,
     data: {
-      students: filteredStudents,
+      students,
       pagination: {
         total,
         page: pageNum,
@@ -169,6 +165,7 @@ export const getStudentDetail = asyncHandler(async (req: AuthRequest, res: Respo
 
   const studentProfile = await StudentProfile.findById(studentId)
     .populate('user', 'name email role isActive')
+    .populate('supervisor', 'employeeId department designation')
     .populate('coSupervisor', 'employeeId department designation')
     .lean();
 
@@ -451,6 +448,14 @@ export const createEvent = asyncHandler(async (req: AuthRequest, res: Response) 
 
   const { userIds, participantDocs } = await resolveParticipants(Array.isArray(participants) ? participants : []);
 
+  if (userIds.length > 0) {
+    const allowed = await getAssignedStudentUserIds(req.user!.id);
+    const unauthorized = userIds.find(id => !allowed.has(id));
+    if (unauthorized) {
+      throw new AppError('Cannot invite a student who is not assigned to you', 403);
+    }
+  }
+
   const event = await Event.create({
     title,
     eventType,
@@ -475,19 +480,12 @@ export const createEvent = asyncHandler(async (req: AuthRequest, res: Response) 
     newValue: { title, eventType, date },
   });
 
-  const participantUsers = userIds.length
-    ? await User.find({ _id: { $in: userIds } }).select('email').lean()
-    : [];
+  if (userIds.length > 0) {
+    const eventMessage = `You have been invited to "${title}" on ${new Date(date).toLocaleDateString()}.`;
+    await createBulkNotifications(userIds, { title: 'New Event: ' + title, message: eventMessage, type: 'event_invitation', link: '/student/events' });
 
-  for (const u of participantUsers) {
-    await createNotification({
-      user: String(u._id),
-      title: `New Event: ${title}`,
-      message: `You have been invited to "${title}" on ${new Date(date).toLocaleDateString()}.`,
-      type: 'event_invitation',
-      link: '/student/events',
-    });
-    await sendNotificationEmail(u.email, 'New Event: ' + title, `You have been invited to "${title}" on ${new Date(date).toLocaleDateString()}.`);
+    const participantUsers = await User.find({ _id: { $in: userIds } }).select('email').lean();
+    await Promise.allSettled(participantUsers.map((u: any) => sendNotificationEmail(u.email, 'New Event: ' + title, eventMessage)));
   }
 
   res.status(201).json({

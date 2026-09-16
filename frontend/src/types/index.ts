@@ -15,6 +15,24 @@ export interface AuthUser {
   email: string;
   role: UserRole;
   isActive?: boolean;
+  profilePhoto?: string | null;
+  isProfileComplete?: boolean;
+}
+
+export interface StudentProfileUpdate {
+  name?: string;
+  researchArea?: string;
+  profilePhoto?: string;
+  dateOfBirth?: string;
+  gender?: string;
+  bloodGroup?: string;
+  category?: string;
+  phone?: string;
+  address?: string;
+  lastDegree?: string;
+  institution?: string;
+  graduationYear?: number;
+  qualification?: string;
 }
 
 export interface Pagination {

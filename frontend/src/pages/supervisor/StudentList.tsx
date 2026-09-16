@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { JSX } from 'react';
-import { Navigate, useNavigate } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useApi } from '../../hooks/useApi';
 import { supervisorApi } from '../../api/supervisor';
@@ -18,7 +18,6 @@ import { STUDENT_TYPE_LABELS, STUDENT_TYPE_OPTIONS } from '../../utils/constants
 
 export function StudentList(): JSX.Element {
   const { user } = useAuth();
-  const navigate = useNavigate();
 
   const [name, setName] = useState('');
   const [appliedName, setAppliedName] = useState('');
@@ -150,15 +149,14 @@ export function StudentList(): JSX.Element {
               students.map((student) => (
                 <TableRow key={student._id}>
                   <TableCell
-                    className="font-medium text-gray-900 hover:text-blue-600"
+                    className="font-medium text-gray-900"
                   >
-                    <button
-                      type="button"
-                      onClick={() => navigate(`/supervisor/students/${student._id}`)}
-                      className="text-left"
+                    <Link
+                      to={`/supervisor/students/${student._id}`}
+                      className="text-blue-600 hover:text-blue-800 hover:underline"
                     >
                       {student.user?.name ?? '—'}
-                    </button>
+                    </Link>
                   </TableCell>
                   <TableCell className="text-gray-700">{student.rollNumber}</TableCell>
                   <TableCell className="text-gray-700">{student.department}</TableCell>

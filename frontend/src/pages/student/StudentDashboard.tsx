@@ -34,6 +34,22 @@ export function StudentDashboard(): JSX.Element {
         title="Dashboard"
         description={data ? `Welcome, ${data.profile.user.name}.` : 'Your academic overview.'}
       />
+      {!loading && !error && data && !data.profile.isProfileComplete && (
+        <div className="mb-6 rounded-md border border-amber-200 bg-amber-50 px-4 py-3">
+          <p className="text-sm text-amber-800">
+            Your profile is incomplete.{' '}
+            <Link to="/student/complete-profile" className="font-medium underline underline-offset-2">
+              Complete your profile
+            </Link>{' '}
+            to get started.
+          </p>
+        </div>
+      )}
+      {!loading && !error && data && !data.profile.supervisor && (
+        <div className="mb-6 rounded-md border border-blue-200 bg-blue-50 px-4 py-3">
+          <p className="text-sm text-blue-800">Awaiting supervisor assignment.</p>
+        </div>
+      )}
       {loading && (
         <div className="space-y-6">
           <SkeletonCards count={4} />
@@ -67,7 +83,7 @@ export function StudentDashboard(): JSX.Element {
             <StatCard
               label="Unread Notifications"
               value={
-                <Link to="/student/notifications" className="text-blue-600 hover:text-blue-700">
+                <Link to="/student/notifications" aria-label="View all unread notifications" className="text-blue-600 hover:text-blue-700">
                   {data.unreadNotifications}
                 </Link>
               }
@@ -103,7 +119,14 @@ export function StudentDashboard(): JSX.Element {
                 View all
               </ButtonLink>
             </div>
-            <div className="mt-4 h-2 rounded bg-gray-200">
+            <div
+              className="mt-4 h-2 rounded bg-gray-200"
+              role="progressbar"
+              aria-label="Milestones progress"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.min(100, Math.round((completedCount(data.milestones) / 11) * 100))}
+            >
               <div
                 className="h-2 rounded bg-blue-600"
                 style={{ width: `${Math.min(100, Math.round((completedCount(data.milestones) / 11) * 100))}%` }}

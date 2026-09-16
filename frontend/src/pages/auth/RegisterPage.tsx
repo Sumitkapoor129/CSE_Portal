@@ -4,8 +4,10 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Alert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
+import { PasswordInput } from '../../components/ui/PasswordInput';
 import { Select } from '../../components/ui/Select';
 import { STUDENT_TYPE_OPTIONS } from '../../utils/constants';
+import { applyServerError } from '../../utils/errors';
 import { required, validateEmail } from '../../utils/validators';
 import type { RegisterPayload } from '../../api/auth';
 import { authApi } from '../../api/auth';
@@ -97,14 +99,14 @@ export function RegisterPage(): JSX.Element {
       setSuccessNote('Verification OTP sent to your email.');
       navigate('/auth/verify-otp', { state: { email: form.email } });
       setSubmitting(false);
-    } catch {
+    } catch (err) {
       setSubmitting(false);
-      setServerError('Unable to register. Please check your details and try again.');
+      applyServerError(err, setFieldErrors, setServerError);
     }
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-8">
+    <main className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-8">
       <div className="w-full max-w-md rounded-lg border border-gray-200 bg-white p-8">
         <h1 className="text-xl font-semibold text-gray-900">Create an account</h1>
         <p className="mt-1 text-sm text-gray-500">Register as a new PhD scholar.</p>
@@ -134,10 +136,9 @@ export function RegisterPage(): JSX.Element {
             placeholder="you@example.com"
           />
 
-          <Input
+          <PasswordInput
             id="password"
             label="Password"
-            type="password"
             value={form.password}
             onChange={handleFieldChange('password')}
             error={fieldErrors.password}
@@ -193,7 +194,7 @@ export function RegisterPage(): JSX.Element {
           </Link>
         </p>
       </div>
-    </div>
+    </main>
   );
 }
 
