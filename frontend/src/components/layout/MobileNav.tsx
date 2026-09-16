@@ -56,8 +56,10 @@ export function MobileNav(): JSX.Element {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        aria-label="Open menu"
+        aria-label="Navigation menu"
+        aria-haspopup="menu"
         aria-expanded={open}
+        aria-controls="mobile-menu"
         className="inline-flex items-center justify-center rounded-md p-2 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 lg:hidden"
       >
         <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -69,11 +71,12 @@ export function MobileNav(): JSX.Element {
           <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={close} />
           <div
             ref={panelRef}
+            id="mobile-menu"
             role="dialog"
             aria-modal="true"
             aria-label="Menu"
             tabIndex={-1}
-            className="fixed inset-y-0 left-0 z-50 flex w-64 flex-col bg-white p-4 shadow-lg outline-none lg:hidden"
+            className="fixed inset-y-0 left-0 z-50 flex w-64 flex-col bg-white px-5 py-4 shadow-lg outline-none lg:hidden"
           >
             <div className="mb-4 flex items-center justify-between">
               {user && (

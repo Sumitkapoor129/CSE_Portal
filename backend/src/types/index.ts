@@ -228,7 +228,7 @@ export interface IDeadline {
   title: string;
   description: string;
   dueDate: Date;
-  semester?: string;
+  semester?: number;
   student?: string;
   createdBy: string;
   notificationSent: boolean;

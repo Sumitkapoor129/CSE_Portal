@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef } from 'react';
 import type { ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { cn } from '../../utils/cn';
 
 const modalWidths = {
@@ -57,17 +58,22 @@ export function Modal({ open, onClose, title, children, footer, maxWidth = 'lg' 
     };
     document.addEventListener('keydown', handleKeyDown);
     document.body.style.overflow = 'hidden';
+    const root = document.getElementById('root');
+    root?.setAttribute('aria-hidden', 'true');
+    root?.setAttribute('inert', '');
     panelRef.current?.focus();
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
       document.body.style.overflow = '';
+      root?.removeAttribute('aria-hidden');
+      root?.removeAttribute('inert');
       previouslyFocused?.focus();
     };
   }, [open]);
 
   if (!open) return null;
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
       <div
         ref={panelRef}
@@ -99,7 +105,8 @@ export function Modal({ open, onClose, title, children, footer, maxWidth = 'lg' 
         <div>{children}</div>
         {footer && <div className="mt-6 flex justify-end gap-3">{footer}</div>}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

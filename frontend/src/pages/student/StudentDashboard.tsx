@@ -83,7 +83,7 @@ export function StudentDashboard(): JSX.Element {
             <StatCard
               label="Unread Notifications"
               value={
-                <Link to="/student/notifications" className="text-blue-600 hover:text-blue-700">
+                <Link to="/student/notifications" aria-label="View all unread notifications" className="text-blue-600 hover:text-blue-700">
                   {data.unreadNotifications}
                 </Link>
               }
@@ -119,7 +119,14 @@ export function StudentDashboard(): JSX.Element {
                 View all
               </ButtonLink>
             </div>
-            <div className="mt-4 h-2 rounded bg-gray-200">
+            <div
+              className="mt-4 h-2 rounded bg-gray-200"
+              role="progressbar"
+              aria-label="Milestones progress"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.min(100, Math.round((completedCount(data.milestones) / 11) * 100))}
+            >
               <div
                 className="h-2 rounded bg-blue-600"
                 style={{ width: `${Math.min(100, Math.round((completedCount(data.milestones) / 11) * 100))}%` }}

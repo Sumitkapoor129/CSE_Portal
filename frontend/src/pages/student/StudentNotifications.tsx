@@ -62,7 +62,7 @@ export function StudentNotifications(): JSX.Element {
                     <span className="shrink-0 text-xs text-gray-500">{formatDateTime(notification.createdAt)}</span>
                   </div>
                   <p className="mt-1 text-sm text-gray-500">{notification.message}</p>
-                  {notification.link && <p className="mt-1 text-xs font-medium text-blue-600">Open</p>}
+                  {notification.link && <p className="mt-1 text-xs font-medium text-blue-600 transition-colors hover:text-blue-700">Open</p>}
                 </button>
               </li>
             ))}

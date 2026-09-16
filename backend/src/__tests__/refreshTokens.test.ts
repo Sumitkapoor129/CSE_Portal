@@ -79,4 +79,19 @@ describe('F8 refresh tokens', () => {
     const me = await request(app).get('/api/auth/me').set('Authorization', `Bearer ${refreshToken}`);
     expect(me.status).toBe(401);
   });
+
+  it('a deactivated user cannot refresh their token', async () => {
+    await makeUser();
+    const { refreshToken: rt } = await login();
+
+    const user = await User.findOne({ email: 'rt@college.edu' });
+    user!.isActive = false;
+    await user!.save();
+
+    const res = await request(app).post('/api/auth/refresh').send({ refreshToken: rt });
+    expect(res.status).toBe(401);
+
+    const session = await RefreshToken.findOne({ tokenHash: { $exists: true } });
+    expect(session).toBeNull();
+  });
 });

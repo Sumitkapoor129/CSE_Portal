@@ -12,11 +12,13 @@ import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
 import { Modal } from '../../components/ui/Modal';
+import { PasswordInput } from '../../components/ui/PasswordInput';
 import { Pagination } from '../../components/ui/Pagination';
 import { SkeletonTable } from '../../components/ui/Skeleton';
 import { Table, TableCell, TableEmpty, TableRow } from '../../components/ui/Table';
 import { ConfirmModal } from '../../components/shared/ConfirmModal';
 import { QueryError } from '../../components/shared/QueryError';
+import { ACTIVE_STATUS_STYLE, INACTIVE_STATUS_STYLE } from '../../utils/constants';
 import type { FacultyView } from '../../types';
 
 const EMPTY_CREATE_FORM = {
@@ -97,10 +99,8 @@ export function FacultyManagement(): JSX.Element {
     setPage(1);
   };
 
-  const activeStyle =
-    'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-green-50 text-green-700 border border-green-200';
-  const inactiveStyle =
-    'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-gray-50 text-gray-700 border border-gray-200';
+  const activeStyle = ACTIVE_STATUS_STYLE;
+  const inactiveStyle = INACTIVE_STATUS_STYLE;
 
   const openCreate = () => {
     setCreateForm(EMPTY_CREATE_FORM);
@@ -272,7 +272,7 @@ export function FacultyManagement(): JSX.Element {
         <Card title="Faculty" padded={false}>
           <Table
             columns={[
-              { key: 'photo', header: '' },
+              { key: 'photo', header: 'Photo' },
               { key: 'name', header: 'Name' },
               { key: 'employeeId', header: 'Employee ID' },
               { key: 'department', header: 'Department' },
@@ -307,6 +307,7 @@ export function FacultyManagement(): JSX.Element {
                       <Button
                         variant={member.user?.isActive === false ? 'primary' : 'danger'}
                         size="sm"
+                        aria-label={member.user?.isActive === false ? `Activate ${member.user?.name || 'faculty member'}` : `Deactivate ${member.user?.name || 'faculty member'}`}
                         onClick={() => {
                           setToggleError(null);
                           setConfirmFaculty(member);
@@ -340,13 +341,13 @@ export function FacultyManagement(): JSX.Element {
               onChange={(event) => setCreateForm({ ...createForm, email: event.target.value })}
               placeholder="faculty@nitjsr.ac.in"
             />
-            <Input
+            <PasswordInput
               id="create-password"
               label="Password"
-              type="password"
               value={createForm.password}
               onChange={(event) => setCreateForm({ ...createForm, password: event.target.value })}
               placeholder="Temporary password"
+              autoComplete="new-password"
             />
             <Input
               id="create-name"

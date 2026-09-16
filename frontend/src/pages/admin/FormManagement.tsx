@@ -253,10 +253,10 @@ export function FormManagement(): JSX.Element {
             onChange={(event) => setForm({ ...form, department: event.target.value })}
             hint="Optional"
           />
-          <div>
-            <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500">
+          <fieldset>
+            <legend className="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500">
               Applicable Student Types
-            </span>
+            </legend>
             <div className="flex items-center gap-4">
               {STUDENT_TYPE_OPTIONS.map((option) => (
                 <label key={option.value} className="flex items-center gap-2 text-sm text-gray-700">
@@ -271,7 +271,7 @@ export function FormManagement(): JSX.Element {
               ))}
             </div>
             <p className="mt-1 text-xs text-gray-500">Empty means applicable to all student types.</p>
-          </div>
+          </fieldset>
           <div className="flex justify-end gap-3">
             <Button type="button" variant="secondary" onClick={closeModal}>
               Cancel

@@ -52,7 +52,7 @@ export function PasswordInput({ id, label, error, hint, className, ...rest }: Pa
         </button>
       </div>
       {error ? (
-        <p id={`${id}-error`} role="alert" className="mt-1 text-xs text-red-600">
+        <p id={`${id}-error`} role="alert" className="mt-1 text-xs text-red-700">
           {error}
         </p>
       ) : hint ? (

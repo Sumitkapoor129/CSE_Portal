@@ -13,16 +13,10 @@ interface ParticipantPickerProps {
   onToggle: (id: string) => void;
 }
 
-export function ParticipantPicker({
-  label = 'Participants',
-  options,
-  selected,
-  loading = false,
-  onToggle,
-}: ParticipantPickerProps) {
+export function ParticipantPicker({ options, selected, loading = false, onToggle }: ParticipantPickerProps) {
   return (
-    <div>
-      <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500">{label}</span>
+    <fieldset>
+      <legend className="text-sm font-medium">Students</legend>
       {loading ? (
         <p className="text-sm text-gray-500">Loading students…</p>
       ) : (
@@ -48,7 +42,7 @@ export function ParticipantPicker({
           })}
         </div>
       )}
-    </div>
+    </fieldset>
   );
 }
 

@@ -444,52 +444,52 @@ export const getDashboard = asyncHandler(async (req: AuthRequest, res: Response)
     throw new AppError('Student profile not found', 404);
   }
 
-  const currentSemester = await Semester.findOne({ student: profile._id }).sort({ semesterNumber: -1 });
-
-  const credits = await computeTotalCredits(profile._id.toString(), profile.requiredCredits ?? 12);
-
-  const milestones = await getMilestones(profile._id.toString());
-  const nextMilestone = milestones.find((m: any) => m.status !== 'completed') || null;
-
   const semesterDocs = await Semester.find({ student: profile._id }).select('_id');
   const semesterIds = semesterDocs.map((s) => s._id);
-
   const now = new Date();
-  const upcomingDeadlines = await Deadline.find({
-    $and: [
-      { dueDate: { $gte: now } },
-      {
-        $or: [
-          { student: profile._id },
-          { semester: { $in: semesterIds } },
-          { student: null },
-          { semester: null },
-        ],
-      },
-    ],
-  })
-    .sort({ dueDate: 1 })
-    .limit(10);
 
-  const upcomingEvents = await Event.find({
-    'participants.participant': req.user!.id,
-    date: { $gte: now },
-  })
-    .populate('organizer', 'name email')
-    .sort({ date: 1 })
-    .limit(10);
+  const [currentSemester, credits, milestones, upcomingDeadlines, upcomingEvents, pendingCourseRequests, thesis, unreadNotifications] = await Promise.all([
+    Semester.findOne({ student: profile._id }).sort({ semesterNumber: -1 }).lean(),
+    computeTotalCredits(profile._id.toString(), profile.requiredCredits ?? 12),
+    getMilestones(profile._id.toString()),
+    Deadline.find({
+      $and: [
+        { dueDate: { $gte: now } },
+        {
+          $or: [
+            { student: profile._id },
+            { semester: { $in: semesterIds } },
+            { student: null },
+            { semester: null },
+          ],
+        },
+      ],
+    })
+      .sort({ dueDate: 1 })
+      .limit(10)
+      .lean(),
+    Event.find({
+      'participants.participant': req.user!.id,
+      date: { $gte: now },
+    })
+      .populate('organizer', 'name email')
+      .sort({ date: 1 })
+      .limit(10)
+      .lean(),
+    StudentCourse.find({
+      student: profile._id,
+      status: 'pending',
+    })
+      .populate('course', 'courseCode courseName credits')
+      .lean(),
+    Thesis.findOne({ student: profile._id }).sort({ version: -1 }).lean(),
+    Notification.countDocuments({
+      user: req.user!.id,
+      isRead: false,
+    }),
+  ]);
 
-  const pendingCourseRequests = await StudentCourse.find({
-    student: profile._id,
-    status: 'pending',
-  }).populate('course', 'courseCode courseName credits');
-
-  const thesis = await Thesis.findOne({ student: profile._id }).sort({ version: -1 });
-
-  const unreadNotifications = await Notification.countDocuments({
-    user: req.user!.id,
-    isRead: false,
-  });
+  const nextMilestone = milestones.find((m: any) => m.status !== 'completed') || null;
 
   res.status(200).json({
     success: true,

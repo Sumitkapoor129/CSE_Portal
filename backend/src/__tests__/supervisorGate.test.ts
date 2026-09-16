@@ -7,6 +7,8 @@ import { User } from '../models/User';
 import { StudentProfile } from '../models/StudentProfile';
 import { Semester } from '../models/Semester';
 import { FacultyProfile } from '../models/FacultyProfile';
+import { Supervisor } from '../models/Supervisor';
+import { StudentCourse } from '../models/StudentCourse';
 
 let mongo: MongoMemoryServer;
 
@@ -21,7 +23,10 @@ afterAll(async () => {
 });
 
 async function setup(withSupervisor: boolean) {
-  await Promise.all([User.deleteMany({}), StudentProfile.deleteMany({}), Semester.deleteMany({}), FacultyProfile.deleteMany({})]);
+  await Promise.all([
+    User.deleteMany({}), StudentProfile.deleteMany({}), Semester.deleteMany({}),
+    FacultyProfile.deleteMany({}), Supervisor.deleteMany({}), StudentCourse.deleteMany({}),
+  ]);
   const user = await User.create({
     email: 'gate@college.edu', password: await bcrypt.hash('secret123', 12),
     name: 'Gate', role: 'student', isActive: true,
@@ -37,7 +42,7 @@ async function setup(withSupervisor: boolean) {
   });
   const sem = await Semester.create({ student: (await StudentProfile.findOne({ user: user._id }))!._id, semesterNumber: 1, academicYear: '2026-27', startDate: new Date('2026-08-01'), endDate: new Date('2027-07-31') });
   const login = await request(app).post('/api/auth/login').send({ email: 'gate@college.edu', password: 'secret123' });
-  return { token: login.body.data.accessToken, semId: String(sem._id) };
+  return { token: login.body.data.accessToken, semId: String(sem._id), userId: String(user._id) };
 }
 
 describe('F4 supervisor gate', () => {
@@ -64,5 +69,78 @@ describe('F4 supervisor gate', () => {
       .set('Authorization', `Bearer ${token}`)
       .send({ courseCode: 'CS701', courseName: 'Advanced Algorithms', credits: 4 });
     expect(res.status).toBe(201);
+  });
+
+  it('denies cross-supervisor course approval', async () => {
+    await Promise.all([
+      User.deleteMany({}), StudentProfile.deleteMany({}), Semester.deleteMany({}),
+      FacultyProfile.deleteMany({}), Supervisor.deleteMany({}), StudentCourse.deleteMany({}),
+    ]);
+
+    const studentAUser = await User.create({
+      email: 'studA@college.edu', password: await bcrypt.hash('secret123', 12),
+      name: 'StudentA', role: 'student', isActive: true,
+    });
+    const studentBUser = await User.create({
+      email: 'studB@college.edu', password: await bcrypt.hash('secret123', 12),
+      name: 'StudentB', role: 'student', isActive: true,
+    });
+    const supervisorAUser = await User.create({
+      email: 'supA@college.edu', password: await bcrypt.hash('secret123', 12),
+      name: 'SupervisorA', role: 'supervisor', isActive: true,
+    });
+    const supervisorBUser = await User.create({
+      email: 'supB@college.edu', password: await bcrypt.hash('secret123', 12),
+      name: 'SupervisorB', role: 'supervisor', isActive: true,
+    });
+
+    const supAProfile = await FacultyProfile.create({
+      user: supervisorAUser._id, employeeId: 'FAC-A', department: 'CSE', designation: 'Professor',
+    });
+    const supBProfile = await FacultyProfile.create({
+      user: supervisorBUser._id, employeeId: 'FAC-B', department: 'CSE', designation: 'Professor',
+    });
+
+    const studentAProfile = await StudentProfile.create({
+      user: studentAUser._id, collegeId: 'CSE9001', rollNumber: '22CS9001',
+      studentType: 'frp', department: 'CSE', admissionDate: new Date(),
+      requiredCredits: 12, isProfileComplete: true, supervisor: supAProfile._id,
+    });
+    const studentBProfile = await StudentProfile.create({
+      user: studentBUser._id, collegeId: 'CSE9002', rollNumber: '22CS9002',
+      studentType: 'frp', department: 'CSE', admissionDate: new Date(),
+      requiredCredits: 12, isProfileComplete: true, supervisor: supBProfile._id,
+    });
+
+    await Supervisor.create({
+      student: studentAProfile._id, supervisor: supAProfile._id,
+      assignedDate: new Date(), isActive: true,
+    });
+    await Supervisor.create({
+      student: studentBProfile._id, supervisor: supBProfile._id,
+      assignedDate: new Date(), isActive: true,
+    });
+
+    const sem = await Semester.create({
+      student: studentAProfile._id, semesterNumber: 1, academicYear: '2026-27',
+      startDate: new Date('2026-08-01'), endDate: new Date('2027-07-31'),
+    });
+
+    const loginStudentA = await request(app).post('/api/auth/login').send({ email: 'studA@college.edu', password: 'secret123' });
+    const courseRes = await request(app).post(`/api/student/semesters/${sem._id}/courses`)
+      .set('Authorization', `Bearer ${loginStudentA.body.data.accessToken}`)
+      .send({ courseCode: 'CS901', courseName: 'Test Course', credits: 3 });
+    expect(courseRes.status).toBe(201);
+
+    const studentCourse = (await StudentCourse.findOne({ student: studentAProfile._id }))!;
+
+    const loginB = await request(app).post('/api/auth/login').send({ email: 'supB@college.edu', password: 'secret123' });
+    const tokenB = loginB.body.data.accessToken;
+
+    const res = await request(app).put(`/api/supervisor/courses/${studentCourse._id}/approve`)
+      .set('Authorization', `Bearer ${tokenB}`)
+      .send({ status: 'approved', comment: 'Looks good' });
+    expect(res.status).toBe(403);
+    expect(res.body.message).toContain('not assigned');
   });
 });

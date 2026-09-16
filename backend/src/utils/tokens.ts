@@ -54,6 +54,10 @@ export const refreshUseCase = async (raw: string): Promise<RefreshUseCaseResult>
     await doc.deleteOne();
     return { ok: false, reason: 'invalid' };
   }
+  if (!user.isActive) {
+    await doc.deleteOne();
+    return { ok: false, reason: 'invalid' };
+  }
   await doc.deleteOne();
   const { token: newRefresh } = await createRefreshSession(String(user._id));
   const accessToken = generateAccessToken({ id: String(user._id), role: user.role, email: user.email });

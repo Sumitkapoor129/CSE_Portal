@@ -220,7 +220,7 @@ export function StudentDetail(): JSX.Element {
                     { key: 'type', header: 'Type' },
                     { key: 'uploaded', header: 'Uploaded' },
                     { key: 'status', header: 'Status' },
-                    { key: 'link', header: '' },
+                    { key: 'link', header: 'Open' },
                   ]}
                 >
                   {data.documents.map((document) => (

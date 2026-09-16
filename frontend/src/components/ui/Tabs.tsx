@@ -40,8 +40,10 @@ export function Tabs({ tabs, active, onChange }: TabsProps) {
           <button
             key={tab.key}
             type="button"
+            id={`tab-${tab.key}`}
             role="tab"
             aria-selected={isActive}
+            aria-controls={`tabpanel-${tab.key}`}
             tabIndex={isActive ? 0 : -1}
             onClick={() => onChange(tab.key)}
             className={cn(

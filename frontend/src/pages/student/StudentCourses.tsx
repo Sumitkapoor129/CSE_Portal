@@ -8,8 +8,9 @@ import { PageHeader } from '../../components/shared/PageHeader';
 import { QueryError } from '../../components/shared/QueryError';
 import { Alert } from '../../components/ui/Alert';
 import { Badge } from '../../components/ui/Badge';
-import { Button } from '../../components/ui/Button';
+import { Button, ButtonLink } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
+import { EmptyState } from '../../components/ui/EmptyState';
 import { Input } from '../../components/ui/Input';
 import { Modal } from '../../components/ui/Modal';
 import { Select } from '../../components/ui/Select';
@@ -153,9 +154,16 @@ export function StudentCourses(): JSX.Element {
         <Alert variant="info">A supervisor must be assigned before you can request courses.</Alert>
       )}
       {!loading && !error && semesterList.length === 0 && (
-        <Card>
-          <p className="text-sm font-medium text-gray-900">No semesters yet</p>
-          <p className="mt-1 text-sm text-gray-500">Add your first semester to start recording courses.</p>
+        <Card padded={false}>
+          <EmptyState
+            title="No semesters yet"
+            message="Add your first semester to start recording courses."
+            action={
+              <ButtonLink to="/student/onboarding" variant="primary" size="sm">
+                Add Semester
+              </ButtonLink>
+            }
+          />
         </Card>
       )}
       {!loading && !error && semesterList.length > 0 && (

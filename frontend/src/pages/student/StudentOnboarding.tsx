@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { FormEvent, JSX } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
@@ -51,6 +51,7 @@ export function StudentOnboarding(): JSX.Element {
   const { reload } = useAuth();
 
   const [step, setStep] = useState(0);
+  const stepHeadingRef = useRef<HTMLHeadingElement>(null);
   const [form, setForm] = useState<OnboardingForm>(emptyForm);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [serverError, setServerError] = useState<string | null>(null);
@@ -85,7 +86,19 @@ export function StudentOnboarding(): JSX.Element {
   };
 
   const handleNext = () => {
-    if (stepValid()) setStep((prev) => Math.min(prev + 1, STEPS.length - 1));
+    if (stepValid()) {
+      setStep((prev) => Math.min(prev + 1, STEPS.length - 1));
+      stepHeadingRef.current?.focus();
+    }
+  };
+
+  const handleBack = () => {
+    if (step === 0) {
+      navigate('/student');
+      return;
+    }
+    setStep((prev) => prev - 1);
+    stepHeadingRef.current?.focus();
   };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -116,7 +129,7 @@ export function StudentOnboarding(): JSX.Element {
     }
   };
 
-  const stepFields: Record<number, { label: string; id: string; field: keyof OnboardingForm; placeholder?: string }[]> = {
+  const stepFields: Record<number, { label: string; id: string; field: keyof OnboardingForm; placeholder?: string; type?: string; autoComplete?: string }[]> = {
     0: [
       { label: 'Date of Birth', id: 'ob-dob', field: 'dateOfBirth', placeholder: '2000-01-15' },
       { label: 'Profile Photo URL', id: 'ob-photo', field: 'profilePhoto', placeholder: 'https://example.com/photo.jpg' },
@@ -129,7 +142,7 @@ export function StudentOnboarding(): JSX.Element {
       { label: 'Research Area', id: 'ob-research', field: 'researchArea', placeholder: 'e.g. Machine Learning' },
     ],
     2: [
-      { label: 'Phone', id: 'ob-phone', field: 'phone', placeholder: 'e.g. 98765 43210' },
+      { label: 'Phone', id: 'ob-phone', field: 'phone', placeholder: 'e.g. 98765 43210', type: 'tel', autoComplete: 'tel' },
       { label: 'Address', id: 'ob-address', field: 'address', placeholder: 'City, State' },
     ],
   };
@@ -144,7 +157,7 @@ export function StudentOnboarding(): JSX.Element {
       <Card>
         <ol className="mb-6 flex items-center gap-2 text-sm" aria-label="Progress">
           {STEPS.map((label, index) => (
-            <li key={label} className="flex items-center gap-2">
+            <li key={label} className="flex items-center gap-2" aria-current={index === step ? 'step' : undefined}>
               <span
                 className={
                   index === step
@@ -160,12 +173,20 @@ export function StudentOnboarding(): JSX.Element {
           ))}
         </ol>
 
+        <h2
+          ref={stepHeadingRef}
+          tabIndex={-1}
+          className="mb-4 rounded text-base font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          {STEPS[step]}
+        </h2>
+
         <form onSubmit={handleSubmit} className="space-y-4" noValidate>
           {serverError && <Alert variant="error">{serverError}</Alert>}
 
           {step === 0 && (
             <div className="grid gap-4 sm:grid-cols-2">
-              <Input id="ob-dob" label="Date of Birth" type="date" value={form.dateOfBirth} onChange={setField('dateOfBirth')} error={errors.dateOfBirth} />
+              <Input id="ob-dob" label="Date of Birth" type="date" autoComplete="bday" value={form.dateOfBirth} onChange={setField('dateOfBirth')} error={errors.dateOfBirth} />
               <Input id="ob-photo" label="Profile Photo URL" type="url" value={form.profilePhoto} onChange={setField('profilePhoto')} error={errors.profilePhoto} placeholder="https://example.com/photo.jpg" />
               <Select id="ob-gender" label="Gender" value={form.gender} onChange={setField('gender')} error={errors.gender} options={GENDER_OPTIONS} />
               <Select id="ob-blood" label="Blood Group" value={form.bloodGroup} onChange={setField('bloodGroup')} error={errors.bloodGroup} options={BLOOD_GROUP_OPTIONS} />
@@ -175,22 +196,22 @@ export function StudentOnboarding(): JSX.Element {
 
           {step === 1 && (
             <div className="grid gap-4 sm:grid-cols-2">
-              {stepFields[1].map(({ label, id, field, placeholder }) => (
-                <Input key={id} id={id} label={label} value={String(form[field])} onChange={setField(field)} error={errors[field]} placeholder={placeholder} />
+              {stepFields[1].map(({ label, id, field, placeholder, type, autoComplete }) => (
+                <Input key={id} id={id} label={label} type={type} autoComplete={autoComplete} value={String(form[field])} onChange={setField(field)} error={errors[field]} placeholder={placeholder} />
               ))}
             </div>
           )}
 
           {step === 2 && (
             <div className="grid gap-4 sm:grid-cols-2">
-              {stepFields[2].map(({ label, id, field, placeholder }) => (
-                <Input key={id} id={id} label={label} value={String(form[field])} onChange={setField(field)} error={errors[field]} placeholder={placeholder} />
+              {stepFields[2].map(({ label, id, field, placeholder, type, autoComplete }) => (
+                <Input key={id} id={id} label={label} type={type} autoComplete={autoComplete} value={String(form[field])} onChange={setField(field)} error={errors[field]} placeholder={placeholder} />
               ))}
             </div>
           )}
 
           <div className="flex items-center justify-between pt-2">
-            <Button type="button" variant="secondary" onClick={() => (step === 0 ? navigate('/student') : setStep((prev) => prev - 1))} disabled={submitting}>
+            <Button type="button" variant="secondary" onClick={handleBack} disabled={submitting}>
               {step === 0 ? 'Skip for now' : 'Back'}
             </Button>
             {step < STEPS.length - 1 ? (

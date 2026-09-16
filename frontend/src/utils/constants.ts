@@ -97,6 +97,12 @@ export const APPROVAL_STATUS_STYLE: Record<ApprovalStatus, string> = {
   resubmission_required: `${badge} bg-blue-50 text-blue-700 border-blue-200`,
 };
 
+export const ACTIVE_STATUS_STYLE =
+  `${badge} bg-green-50 text-green-700 border-green-200`;
+
+export const INACTIVE_STATUS_STYLE =
+  `${badge} bg-gray-50 text-gray-700 border-gray-200`;
+
 export const THESIS_STATUS_STYLE: Record<ThesisStatus, string> = {
   draft: `${badge} bg-gray-50 text-gray-700 border-gray-200`,
   submitted: `${badge} bg-blue-50 text-blue-700 border-blue-200`,

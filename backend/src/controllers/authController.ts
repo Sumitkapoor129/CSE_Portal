@@ -12,10 +12,15 @@ import { generateAccessToken, createRefreshSession, refreshUseCase, revokeRefres
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-const buildUserPayload = async (user: { _id: unknown; name: string; email: string; role: UserRole }) => {
-  const profile = user.role === UserRole.STUDENT
-    ? await StudentProfile.findOne({ user: user._id })
-    : await FacultyProfile.findOne({ user: user._id });
+const buildUserPayload = async (
+  user: { _id: unknown; name: string; email: string; role: UserRole },
+  existingProfile?: { profilePhoto?: string; isProfileComplete?: boolean } | null
+) => {
+  const profile = existingProfile ?? (
+    user.role === UserRole.STUDENT
+      ? await StudentProfile.findOne({ user: user._id })
+      : await FacultyProfile.findOne({ user: user._id })
+  );
   return {
     id: user._id,
     name: user.name,
@@ -165,7 +170,7 @@ export const getMe = asyncHandler(async (req: AuthRequest, res: Response) => {
   res.status(200).json({
     success: true,
     data: {
-      ...(await buildUserPayload(user)),
+      ...(await buildUserPayload(user, profile)),
       isActive: user.isActive,
       profile,
     },

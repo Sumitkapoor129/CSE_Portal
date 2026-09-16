@@ -12,7 +12,7 @@ const refreshTokenSchema = new Schema<any>(
   { timestamps: true }
 );
 
-refreshTokenSchema.index({ tokenHash: 1 }, { unique: true });
 refreshTokenSchema.index({ user: 1, expiresAt: 1 });
+refreshTokenSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 export const RefreshToken = mongoose.model<IRefreshTokenDocument>('RefreshToken', refreshTokenSchema);

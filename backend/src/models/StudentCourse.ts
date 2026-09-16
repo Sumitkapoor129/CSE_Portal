@@ -16,6 +16,8 @@ const studentCourseSchema = new Schema<any>(
   { timestamps: true }
 );
 
+studentCourseSchema.index({ student: 1, status: 1 });
+
 export const StudentCourse = mongoose.model<IStudentCourseDocument>(
   'StudentCourse',
   studentCourseSchema

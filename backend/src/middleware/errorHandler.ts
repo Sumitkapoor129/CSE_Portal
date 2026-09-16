@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import { env } from '../config/env';
 
 export class AppError extends Error {
   public statusCode: number;
@@ -15,7 +16,7 @@ export class AppError extends Error {
 }
 
 export const errorHandler = (
-  err: Error,
+  err: Error & { name?: string },
   _req: Request,
   res: Response,
   _next: NextFunction
@@ -24,15 +25,20 @@ export const errorHandler = (
     res.status(err.statusCode).json({
       message: err.message,
       ...(err.fields ? { fields: err.fields } : {}),
-      ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
+      ...(env.NODE_ENV === 'development' && { stack: err.stack }),
     });
+    return;
+  }
+
+  if (err.name === 'CastError') {
+    res.status(400).json({ message: 'Invalid id or value format' });
     return;
   }
 
   console.error('Unhandled error:', err);
   res.status(500).json({
     message: 'Internal server error',
-    ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
+    ...(env.NODE_ENV === 'development' && { stack: err.stack }),
   });
 };
 

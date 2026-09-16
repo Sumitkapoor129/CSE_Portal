@@ -11,14 +11,14 @@ import { Deadline } from '../models/Deadline';
 import { ApprovalRequest } from '../models/ApprovalRequest';
 import { AppError, asyncHandler } from '../middleware/errorHandler';
 import { createAuditLog } from '../utils/audit';
-import { createNotification } from '../utils/notify';
-import { UserRole, AuthRequest, ApprovalStatus } from '../types';
+import { createNotification, createBulkNotifications } from '../utils/notify';
+import { UserRole, AuthRequest, ApprovalStatus, SRCMemberRole } from '../types';
 import { paginate } from '../utils/pagination';
 import { Milestone } from '../models/Milestone';
 import { seedMilestones, updateMilestone as updateMilestoneService } from '../services/milestoneService';
 import { resolveParticipants } from '../utils/participants';
 import { sendNotificationEmail } from '../utils/email';
-import { SRCMemberRole } from '../types';
+import { escapeRegex } from '../utils/query';
 
 // ─── Dashboard ───────────────────────────────────────────────────────────────
 
@@ -178,14 +178,15 @@ export const toggleStudentActive = asyncHandler(async (req: AuthRequest, res: Re
 export const listStudents = asyncHandler(async (req: AuthRequest, res: Response) => {
   const page = Math.max(1, parseInt(req.query.page as string) || 1);
   const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
-  const { search, studentType, department } = req.query;
+  const { search, studentType, department, fields } = req.query;
 
   const filter: Record<string, unknown> = {};
   if (studentType) filter.studentType = studentType;
   if (department) filter.department = department;
 
   if (search) {
-    const regex = new RegExp(search as string, 'i');
+    const safeSearch = (search as string).slice(0, 100);
+    const regex = new RegExp(escapeRegex(safeSearch), 'i');
     const matchingUsers = await User.find({
       role: UserRole.STUDENT,
       $or: [{ name: regex }, { email: regex }],
@@ -199,17 +200,27 @@ export const listStudents = asyncHandler(async (req: AuthRequest, res: Response)
     ];
   }
 
-  const result = await paginate(StudentProfile, filter, page, limit, { createdAt: -1 }, ['user']);
+  const fieldList = fields ? (fields as string).split(',').map(f => f.trim()).filter(Boolean) : undefined;
+  const projection = fieldList ? fieldList.join(' ') : undefined;
+
+  const query = StudentProfile.find(filter).populate('user', 'name email');
+  if (projection) {
+    query.select(projection);
+  }
+
+  const total = await StudentProfile.countDocuments(filter);
+  const skip = (page - 1) * limit;
+  const data = await query.sort({ createdAt: -1 }).skip(skip).limit(limit).lean();
 
   res.status(200).json({
     success: true,
     data: {
-      students: result.data,
+      students: data,
       pagination: {
-        page: result.page,
+        page,
         limit,
-        total: result.total,
-        totalPages: result.totalPages,
+        total,
+        totalPages: Math.ceil(total / limit),
       },
     },
   });
@@ -347,13 +358,14 @@ export const toggleFacultyActive = asyncHandler(async (req: AuthRequest, res: Re
 export const listFaculty = asyncHandler(async (req: AuthRequest, res: Response) => {
   const page = Math.max(1, parseInt(req.query.page as string) || 1);
   const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
-  const { search, department } = req.query;
+  const { search, department, fields } = req.query;
 
   const filter: Record<string, unknown> = {};
   if (department) filter.department = department;
 
   if (search) {
-    const regex = new RegExp(search as string, 'i');
+    const safeSearch = (search as string).slice(0, 100);
+    const regex = new RegExp(escapeRegex(safeSearch), 'i');
     const matchingUsers = await User.find({
       role: UserRole.SUPERVISOR,
       $or: [{ name: regex }, { email: regex }],
@@ -366,17 +378,27 @@ export const listFaculty = asyncHandler(async (req: AuthRequest, res: Response) 
     ];
   }
 
-  const result = await paginate(FacultyProfile, filter, page, limit, { createdAt: -1 }, ['user']);
+  const fieldList = fields ? (fields as string).split(',').map(f => f.trim()).filter(Boolean) : undefined;
+  const projection = fieldList ? fieldList.join(' ') : undefined;
+
+  const query = FacultyProfile.find(filter).populate('user', 'name email');
+  if (projection) {
+    query.select(projection);
+  }
+
+  const total = await FacultyProfile.countDocuments(filter);
+  const skip = (page - 1) * limit;
+  const data = await query.sort({ createdAt: -1 }).skip(skip).limit(limit).lean();
 
   res.status(200).json({
     success: true,
     data: {
-      faculty: result.data,
+      faculty: data,
       pagination: {
-        page: result.page,
+        page,
         limit,
-        total: result.total,
-        totalPages: result.totalPages,
+        total,
+        totalPages: Math.ceil(total / limit),
       },
     },
   });
@@ -448,11 +470,10 @@ export const assignSupervisor = asyncHandler(async (req: AuthRequest, res: Respo
 
 // ─── SRC Committee ───────────────────────────────────────────────────────────
 
-export const createSRCCommittee = asyncHandler(async (req: AuthRequest, res: Response) => {
-  const { studentId, members } = req.body;
-
-  if (!studentId || !members || !Array.isArray(members) || members.length === 0) {
-    throw new AppError('studentId and at least one member are required', 400);
+const validateSRCMembers = async (members: Array<{ role: string; faculty: string }>, studentId: string): Promise<void> => {
+  const chairpersonCount = members.filter((m) => m.role === SRCMemberRole.CHAIRPERSON).length;
+  if (chairpersonCount !== 1) {
+    throw new AppError('SRC committee must have exactly one chairperson', 400);
   }
 
   const studentProfile = await StudentProfile.findById(studentId);
@@ -460,27 +481,31 @@ export const createSRCCommittee = asyncHandler(async (req: AuthRequest, res: Res
     throw new AppError('Student profile not found', 404);
   }
 
-  const existing = await SRCCommittee.findOne({ student: studentId });
-  if (existing) {
-    throw new AppError('SRC committee already exists for this student. Use update instead.', 409);
-  }
-
-  const chairpersonCount = members.filter((m: { role: string }) => m.role === SRCMemberRole.CHAIRPERSON).length;
-  if (chairpersonCount !== 1) {
-    throw new AppError('SRC committee must have exactly one chairperson', 400);
-  }
-
-  const supervisorMember = members.find((m: { role: string }) => m.role === SRCMemberRole.SUPERVISOR);
+  const supervisorMember = members.find((m) => m.role === SRCMemberRole.SUPERVISOR);
   if (supervisorMember && studentProfile.supervisor) {
     if (supervisorMember.faculty !== studentProfile.supervisor.toString()) {
       throw new AppError('SRC supervisor must match the assigned supervisor', 400);
     }
   }
+};
+
+export const createSRCCommittee = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { studentId, members } = req.body;
+
+  if (!studentId || !members || !Array.isArray(members) || members.length === 0) {
+    throw new AppError('studentId and at least one member are required', 400);
+  }
+
+  const existing = await SRCCommittee.findOne({ student: studentId });
+  if (existing) {
+    throw new AppError('SRC committee already exists for this student. Use update instead.', 409);
+  }
+
+  await validateSRCMembers(members, studentId);
 
   const committee = await SRCCommittee.create({ student: studentId, members });
 
-  studentProfile.srcCommittee = committee._id.toString();
-  await studentProfile.save();
+  await StudentProfile.findByIdAndUpdate(studentId, { srcCommittee: committee._id.toString() });
 
   await createAuditLog({
     user: req.user!.id,
@@ -505,6 +530,8 @@ export const updateSRCCommittee = asyncHandler(async (req: AuthRequest, res: Res
   if (!committee) {
     throw new AppError('SRC committee not found', 404);
   }
+
+  await validateSRCMembers(members, committee.student);
 
   const previousValue = committee.toObject() as unknown as Record<string, unknown>;
 
@@ -549,18 +576,11 @@ export const createEvent = asyncHandler(async (req: AuthRequest, res: Response) 
   });
 
   if (userIds.length) {
-    const participantUsers = await User.find({ _id: { $in: userIds } }).select('email').lean();
     const eventMessage = `You have been invited to "${title}" on ${new Date(date).toLocaleDateString()}.`;
-    for (const u of participantUsers) {
-      await createNotification({
-        user: String(u._id),
-        title: `New Event: ${title}`,
-        message: eventMessage,
-        type: 'event_invitation',
-        link: '/student/events',
-      });
-      await sendNotificationEmail(u.email, 'New Event: ' + title, eventMessage);
-    }
+    await createBulkNotifications(userIds, { title: 'New Event: ' + title, message: eventMessage, type: 'event_invitation', link: '/student/events' });
+
+    const participantUsers = await User.find({ _id: { $in: userIds } }).select('email').lean();
+    await Promise.allSettled(participantUsers.map((u: any) => sendNotificationEmail(u.email, 'New Event: ' + title, eventMessage)));
   }
 
   await createAuditLog({
@@ -778,11 +798,20 @@ export const createDeadline = asyncHandler(async (req: AuthRequest, res: Respons
     throw new AppError('title and dueDate are required', 400);
   }
 
+  let semesterNum: number | undefined;
+  if (semester !== undefined && semester !== null) {
+    const n = Number(semester);
+    if (!Number.isInteger(n) || n < 1) {
+      throw new AppError('semester must be a positive integer', 400);
+    }
+    semesterNum = n;
+  }
+
   const deadline = await Deadline.create({
     title,
     description: description || '',
     dueDate,
-    semester,
+    semester: semesterNum,
     student,
     createdBy: req.user!.id,
   });
@@ -837,7 +866,8 @@ export const globalSearch = asyncHandler(async (req: AuthRequest, res: Response)
     throw new AppError('Search query (q) is required', 400);
   }
 
-  const regex = new RegExp(q as string, 'i');
+  const safeQ = (q as string).slice(0, 100);
+  const regex = new RegExp(escapeRegex(safeQ), 'i');
 
   const [students, faculty] = await Promise.all([
     StudentProfile.find({

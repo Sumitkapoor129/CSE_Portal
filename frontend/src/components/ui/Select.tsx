@@ -49,7 +49,7 @@ export function Select({ id, label, error, hint, options, className, ...rest }: 
         </span>
       </div>
       {error ? (
-        <p id={`${id}-error`} role="alert" className="mt-1 text-xs text-red-600">
+        <p id={`${id}-error`} role="alert" className="mt-1 text-xs text-red-700">
           {error}
         </p>
       ) : hint ? (

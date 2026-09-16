@@ -10,7 +10,7 @@ export function DueDateCell({ date, variant = 'days-left' }: DueDateCellProps) {
   if (variant === 'overdue-count') {
     if (days === null) return '—';
     if (days < 0) return <span className="font-medium text-red-600">Overdue by {Math.abs(days)}d</span>;
-    if (days === 0) return <span className="font-medium text-amber-600">Due today</span>;
+    if (days === 0) return <span className="font-medium text-amber-700">Due today</span>;
     return <span className="text-gray-700">In {days}d</span>;
   }
   if (days === null) {

@@ -88,7 +88,7 @@ export function DeadlineManagement(): JSX.Element {
         title: form.title.trim(),
         description: form.description.trim() || undefined,
         dueDate: form.dueDate,
-        semester: form.semester.trim() || undefined,
+        semester: form.semester ? Number(form.semester) : undefined,
         student: form.student || undefined,
       });
       closeCreate();
