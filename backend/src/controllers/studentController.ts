@@ -444,8 +444,8 @@ export const getDashboard = asyncHandler(async (req: AuthRequest, res: Response)
     throw new AppError('Student profile not found', 404);
   }
 
-  const semesterDocs = await Semester.find({ student: profile._id }).select('_id');
-  const semesterIds = semesterDocs.map((s) => s._id);
+  const semesterDocs = await Semester.find({ student: profile._id }).select('semesterNumber');
+  const semesterNumbers = semesterDocs.map((s) => s.semesterNumber);
   const now = new Date();
 
   const [currentSemester, credits, milestones, upcomingDeadlines, upcomingEvents, pendingCourseRequests, thesis, unreadNotifications] = await Promise.all([
@@ -458,7 +458,7 @@ export const getDashboard = asyncHandler(async (req: AuthRequest, res: Response)
         {
           $or: [
             { student: profile._id },
-            { semester: { $in: semesterIds } },
+            { semester: { $in: semesterNumbers } },
             { student: null },
             { semester: null },
           ],
@@ -530,13 +530,13 @@ export const getMyDeadlines = asyncHandler(async (req: AuthRequest, res: Respons
     throw new AppError('Student profile not found', 404);
   }
 
-  const semesterDocs = await Semester.find({ student: profile._id }).select('_id');
-  const semesterIds = semesterDocs.map((s) => s._id);
+  const semesterDocs = await Semester.find({ student: profile._id }).select('semesterNumber');
+  const semesterNumbers = semesterDocs.map((s) => s.semesterNumber);
 
   const filter: Record<string, any> = {
     $or: [
       { student: profile._id },
-      { semester: { $in: semesterIds } },
+      { semester: { $in: semesterNumbers } },
       { student: null },
       { semester: null },
     ],
