@@ -16,6 +16,30 @@ import { UserRole, AuthRequest, ApprovalStatus } from '../types';
 import { computeTotalCredits } from '../services/creditService';
 import { getMilestones } from '../services/milestoneService';
 
+const requireAssignedSupervisor = (profile: { supervisor?: string }, action: string): void => {
+  if (!profile.supervisor) {
+    throw new AppError(`${action} requires an assigned supervisor.`, 403);
+  }
+};
+
+const deriveSemesterDates = (academicYear?: string): { startDate: Date; endDate: Date } => {
+  const match = /^(\d{4})[-–](\d{2})$/.exec((academicYear || '').trim());
+  if (match) {
+    const startYear = Number(match[1]);
+    const endShort = Number(match[2]);
+    const endYear = endShort > 50 ? 1900 + endShort : 2000 + endShort;
+    return {
+      startDate: new Date(Date.UTC(startYear, 7, 1)),
+      endDate: new Date(Date.UTC(endYear, 6, 31)),
+    };
+  }
+  const now = new Date();
+  return {
+    startDate: new Date(now.getFullYear(), now.getMonth(), 1),
+    endDate: new Date(now.getFullYear() + 1, now.getMonth(), 1),
+  };
+};
+
 export const getProfile = asyncHandler(async (req: AuthRequest, res: Response) => {
   const profile = await StudentProfile.findOne({ user: req.user!.id })
     .populate('user', 'name email role')
@@ -30,7 +54,7 @@ export const getProfile = asyncHandler(async (req: AuthRequest, res: Response) =
 });
 
 export const updateProfile = asyncHandler(async (req: AuthRequest, res: Response) => {
-  const { name, researchArea, profilePhoto } = req.body;
+  const { name } = req.body;
 
   const profile = await StudentProfile.findOne({ user: req.user!.id });
   if (!profile) {
@@ -42,12 +66,19 @@ export const updateProfile = asyncHandler(async (req: AuthRequest, res: Response
     profilePhoto: profile.profilePhoto,
   };
 
-  if (researchArea !== undefined) {
-    profile.researchArea = researchArea;
+  const editable = ['researchArea', 'profilePhoto', 'dateOfBirth', 'gender', 'bloodGroup', 'category', 'phone', 'address', 'lastDegree', 'institution', 'graduationYear', 'qualification'] as const;
+  for (const field of editable) {
+    if (req.body[field] !== undefined) {
+      (profile as unknown as Record<string, unknown>)[field] = req.body[field];
+    }
   }
-  if (profilePhoto !== undefined) {
-    profile.profilePhoto = profilePhoto;
-  }
+  if (req.body.dateOfBirth) profile.dateOfBirth = new Date(req.body.dateOfBirth);
+
+  const REQUIRED_PROFILE_FIELDS = ['researchArea', 'phone', 'address', 'lastDegree', 'institution', 'graduationYear', 'dateOfBirth'] as const;
+  profile.isProfileComplete = REQUIRED_PROFILE_FIELDS.every((f) => {
+    const v = (profile as unknown as Record<string, unknown>)[f];
+    return v !== undefined && v !== null && v !== '';
+  });
 
   await profile.save();
 
@@ -102,12 +133,21 @@ export const createSemester = asyncHandler(async (req: AuthRequest, res: Respons
     throw new AppError('Semester already exists', 409);
   }
 
+  const lastSemester = await Semester.findOne({ student: profile._id }).sort({ semesterNumber: -1 });
+  const expected = lastSemester ? lastSemester.semesterNumber + 1 : 1;
+  if (semesterNumber !== expected) {
+    throw new AppError(`Semester ${semesterNumber} cannot be added. Next semester is ${expected}.`, 400, {
+      semesterNumber: `The next semester to add is ${expected}.`,
+    });
+  }
+
+  const semesterDates = deriveSemesterDates(academicYear);
   const semester = await Semester.create({
     student: profile._id,
     semesterNumber,
     academicYear,
-    startDate: startDate ? new Date(startDate) : undefined,
-    endDate: endDate ? new Date(endDate) : undefined,
+    startDate: startDate ? new Date(startDate) : semesterDates.startDate,
+    endDate: endDate ? new Date(endDate) : semesterDates.endDate,
   });
 
   await createAuditLog({
@@ -156,6 +196,8 @@ export const addCourse = asyncHandler(async (req: AuthRequest, res: Response) =>
   if (!semester) {
     throw new AppError('Semester not found', 404);
   }
+
+  requireAssignedSupervisor(profile, 'Requesting a course');
 
   const course = await Course.create({
     semester: semester._id,
@@ -240,6 +282,8 @@ export const uploadDocument = asyncHandler(async (req: AuthRequest, res: Respons
     throw new AppError('Student profile not found', 404);
   }
 
+  requireAssignedSupervisor(profile, 'Uploading a document');
+
   const document = await DocumentModel.create({
     student: profile._id,
     semester,
@@ -284,6 +328,8 @@ export const submitThesis = asyncHandler(async (req: AuthRequest, res: Response)
   if (!profile) {
     throw new AppError('Student profile not found', 404);
   }
+
+  requireAssignedSupervisor(profile, 'Submitting a thesis');
 
   const lastThesis = await Thesis.findOne({ student: profile._id }).sort({ version: -1 });
   const version = lastThesis ? lastThesis.version + 1 : 1;

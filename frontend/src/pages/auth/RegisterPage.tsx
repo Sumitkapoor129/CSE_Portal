@@ -4,8 +4,10 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Alert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
+import { PasswordInput } from '../../components/ui/PasswordInput';
 import { Select } from '../../components/ui/Select';
 import { STUDENT_TYPE_OPTIONS } from '../../utils/constants';
+import { applyServerError } from '../../utils/errors';
 import { required, validateEmail } from '../../utils/validators';
 import type { RegisterPayload } from '../../api/auth';
 import { authApi } from '../../api/auth';
@@ -97,9 +99,9 @@ export function RegisterPage(): JSX.Element {
       setSuccessNote('Verification OTP sent to your email.');
       navigate('/auth/verify-otp', { state: { email: form.email } });
       setSubmitting(false);
-    } catch {
+    } catch (err) {
       setSubmitting(false);
-      setServerError('Unable to register. Please check your details and try again.');
+      applyServerError(err, setFieldErrors, setServerError);
     }
   };
 
@@ -134,10 +136,9 @@ export function RegisterPage(): JSX.Element {
             placeholder="you@example.com"
           />
 
-          <Input
+          <PasswordInput
             id="password"
             label="Password"
-            type="password"
             value={form.password}
             onChange={handleFieldChange('password')}
             error={fieldErrors.password}

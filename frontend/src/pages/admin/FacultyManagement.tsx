@@ -6,6 +6,7 @@ import { useApi } from '../../hooks/useApi';
 import { adminApi } from '../../api/admin';
 import { PageHeader } from '../../components/shared/PageHeader';
 import { Alert } from '../../components/ui/Alert';
+import { Avatar } from '../../components/ui/Avatar';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
@@ -271,6 +272,7 @@ export function FacultyManagement(): JSX.Element {
         <Card title="Faculty" padded={false}>
           <Table
             columns={[
+              { key: 'photo', header: '' },
               { key: 'name', header: 'Name' },
               { key: 'employeeId', header: 'Employee ID' },
               { key: 'department', header: 'Department' },
@@ -280,10 +282,13 @@ export function FacultyManagement(): JSX.Element {
             ]}
           >
             {faculty.length === 0 ? (
-              <TableEmpty colSpan={6} message="No faculty found." />
+              <TableEmpty colSpan={7} message="No faculty found." />
             ) : (
               faculty.map((member) => (
                 <TableRow key={member._id}>
+                  <TableCell>
+                    <Avatar name={member.user?.name ?? '—'} photo={member.profilePhoto ?? null} size="sm" />
+                  </TableCell>
                   <TableCell className="font-medium text-gray-900">{member.user?.name ?? '—'}</TableCell>
                   <TableCell className="text-gray-700">{member.employeeId}</TableCell>
                   <TableCell className="text-gray-700">{member.department}</TableCell>

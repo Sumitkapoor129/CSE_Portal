@@ -1,0 +1,1491 @@
+# Software Requirements Specification (SRS)
+
+## PhD Scholar Management & Academic Tracking System
+
+**Version:** 1.0
+**Date:** September 2026
+**Project Type:** Web-Based Academic Management System
+**Primary Users:** PhD Students, Supervisors/Faculty, Administrators
+
+---
+
+# 1. Introduction
+
+## 1.1 Purpose
+
+The purpose of this system is to provide a centralized web-based platform for managing and tracking the academic journey of PhD scholars.
+
+The system will allow PhD students to:
+
+* Maintain their academic profile.
+* Track semester-wise academic work.
+* Manage courses and credits.
+* Upload and manage academic documents.
+* Access and submit required forms.
+* Track deadlines and upcoming events.
+* Maintain their degree timeline.
+* Manage thesis-related information.
+* View their Supervisor and SRC Committee.
+* Receive notifications regarding deadlines, approvals, and events.
+
+Supervisors/Faculty will be able to:
+
+* View their assigned students.
+* Monitor students' academic progress.
+* View student records semester-wise.
+* Schedule events for one or multiple students.
+* Approve/reject thesis submissions and other student requests.
+* Approve requests to become a Supervisor or SRC Committee member.
+
+Administrators will have complete control over the system, including student/faculty management, supervisor assignment, SRC committee management, event management, and profile modification.
+
+---
+
+# 2. User Roles
+
+The system shall have three primary roles.
+
+## 2.1 Student
+
+Students are divided into:
+
+1. Regular Student
+2. Part-Time Student
+
+A student can either:
+
+* Register independently using their official college email/College ID, or
+* Be created by an Administrator.
+
+### Student Permissions
+
+A Student shall be able to:
+
+* Register an account.
+* Log in.
+* Complete their profile.
+* View and edit permitted profile information.
+* View semester-wise academic work.
+* View courses and credits.
+* Add course work.
+* Submit course work for Supervisor approval.
+* View and download required forms.
+* Fill/edit applicable forms.
+* Upload semester-wise documents.
+* View uploaded documents.
+* Upload thesis documents.
+* View thesis approval status.
+* View Supervisor information.
+* View SRC Committee information.
+* View degree timeline.
+* View upcoming events.
+* Receive deadline notifications.
+* Receive approval/rejection notifications.
+* View system notifications.
+
+---
+
+# 3.2 Supervisor / Faculty
+
+Supervisors are created by the Administrator.
+
+A Supervisor shall be able to:
+
+* Log in using Faculty credentials.
+* View their dashboard.
+* View all assigned students.
+* Filter students according to available student details.
+* Open and view individual student profiles.
+* View student academic records semester-wise.
+* View student documents.
+* View student thesis information.
+* View student degree timeline.
+* View student courses and credits.
+* Create/schedule events.
+* Schedule an event for multiple students simultaneously.
+* Select eligible students while creating an event.
+* Receive approval requests.
+* Approve/reject thesis submissions.
+* Approve/reject course-work requests.
+* Approve/reject Supervisor/SRC Committee requests where applicable.
+
+---
+
+# 3.3 Administrator
+
+The Administrator shall have full control over the system.
+
+The Admin account shall be hardcoded/created during system deployment and shall not use public registration.
+
+### Admin Permissions
+
+The Administrator shall be able to:
+
+* Log in to the Admin panel.
+* View all students.
+* View all faculty/supervisors.
+* Create students.
+* Edit student profiles.
+* Disable/activate student accounts.
+* Create faculty/supervisor accounts.
+* Edit faculty information.
+* Disable/activate faculty accounts.
+* Assign Supervisors to students.
+* Change assigned Supervisors.
+* Create/manage SRC Committees.
+* Add/remove SRC Committee members.
+* Edit SRC Committee information.
+* Create events.
+* Schedule events for students.
+* Schedule events for faculty.
+* Manage deadlines.
+* View student academic records.
+* Modify student academic information where authorized.
+* Manage uploaded/document records where authorized.
+* Manage courses and credits.
+* Manage forms.
+* View system-wide notifications.
+* Manage system configuration.
+
+---
+
+# 3. Functional Requirements
+
+# 4. Authentication & Registration
+
+## FR-01 Student Registration
+
+The system shall allow a student to register using their official college email/College ID.
+
+### Registration Flow
+
+1. Student opens the website.
+2. Student selects **Register**.
+3. Student enters their College ID / official college email.
+4. System validates the College ID/email.
+5. System sends an OTP.
+6. Student enters the OTP.
+7. System verifies the OTP.
+8. Account is created.
+9. Student is redirected to the Login page.
+10. Student logs in.
+11. If this is the student's first login, the system redirects them to **Complete Profile**.
+
+---
+
+## FR-02 Student Login
+
+The system shall allow registered students to log in.
+
+The system shall authenticate the user and determine their role.
+
+The system shall redirect the user to the appropriate dashboard:
+
+* Student → Student Dashboard
+* Supervisor → Supervisor Dashboard
+* Admin → Admin Dashboard
+
+---
+
+## FR-03 Faculty Login
+
+Faculty/Supervisors shall use credentials created by the Administrator.
+
+Faculty shall not have public registration.
+
+---
+
+## FR-04 Admin Login
+
+The Admin account shall be controlled by the system and shall not be available through public registration.
+
+---
+
+# 5. Student Profile Management
+
+## FR-05 First Login Profile Completion
+
+During the student's first login, the system shall require the student to complete their profile.
+
+The profile may contain:
+
+* Profile photo
+* Name
+* College ID
+* Roll Number
+* Official email
+* Student type
+
+  * Regular
+  * Part-Time
+* Admission information
+* Department
+* Research area
+* Supervisor
+* SRC Committee
+* DPF-01 information
+* Other required academic/personal details
+
+The exact profile fields shall be finalized during database design.
+
+---
+
+## FR-06 View Profile
+
+Students shall be able to view their complete profile.
+
+---
+
+## FR-07 Edit Profile
+
+Students shall be able to edit fields that are designated as student-editable.
+
+Sensitive/administrative fields shall require Admin modification or approval.
+
+---
+
+## FR-08 Admin Profile Modification
+
+The Administrator shall be able to modify student information regardless of whether the field is normally student-editable.
+
+---
+
+# 6. Semester Management
+
+## FR-09 Semester-wise Academic Records
+
+The system shall maintain academic information separately for each semester.
+
+A student's profile shall provide access to:
+
+* Semester 1
+* Semester 2
+* Semester 3
+* ...
+* Final semester
+
+The number of semesters should be configurable rather than permanently hardcoded.
+
+---
+
+## FR-10 Semester Dashboard
+
+Each semester shall display relevant information such as:
+
+* Courses
+* Credits earned
+* Documents
+* Forms
+* Events
+* Deadlines
+* Academic activities
+* Thesis/research activities
+* Other semester-specific work
+
+---
+
+## FR-11 Degree Timeline
+
+The system shall automatically maintain a timeline of important events in the student's PhD journey.
+
+Examples:
+
+* Admission
+* Registration
+* Course completion
+* Seminar
+* SRC formation
+* Comprehensive examination
+* Research milestones
+* Thesis submission
+* Thesis approval
+* Other configured milestones
+
+The timeline should be generated from relevant events and academic records stored in the system.
+
+---
+
+# 7. Courses & Credits
+
+## FR-12 View Courses
+
+Students shall be able to view courses associated with each semester.
+
+Each course may contain:
+
+* Course code
+* Course name
+* Credits
+* Grade
+* Status
+* Semester
+* Approval status
+
+---
+
+## FR-13 View Credits
+
+Students shall be able to view:
+
+* Credits earned per semester.
+* Total credits earned.
+* Required credits.
+* Remaining credits.
+
+---
+
+## FR-14 Add Course Work
+
+Students shall be able to request/add course work for a semester.
+
+The request shall contain appropriate course information.
+
+The system shall mark the request as:
+
+**Pending → Approved / Rejected**
+
+---
+
+## FR-15 Supervisor Course Approval
+
+The Supervisor shall receive a notification when a student submits course work for approval.
+
+The Supervisor shall be able to:
+
+* Approve the course.
+* Reject the course.
+* Optionally provide a reason/comment.
+
+Only approved course work shall be considered officially accepted.
+
+---
+
+# 8. Forms Management
+
+## FR-16 View Forms
+
+Students shall have access to all forms applicable to them.
+
+Forms may be categorized by:
+
+* Semester
+* Academic stage
+* Event
+* Administrative requirement
+
+---
+
+## FR-17 Edit Forms
+
+Where permitted, students shall be able to fill/edit forms online.
+
+---
+
+## FR-18 Download Forms
+
+Students shall be able to download available forms.
+
+The system should support commonly used document formats such as:
+
+* PDF
+* DOC/DOCX
+
+---
+
+## FR-19 Form Management by Admin
+
+Admin shall be able to:
+
+* Add forms.
+* Update forms.
+* Remove forms.
+* Define applicable student category/semester.
+* Replace outdated forms.
+
+---
+
+# 9. Document Management
+
+## FR-20 Semester-wise Document Upload
+
+Students shall be able to upload documents associated with a particular semester.
+
+Documents shall be organized by:
+
+**Student → Semester → Document Category → Document**
+
+---
+
+## FR-21 Document Viewing
+
+Students shall be able to view previously uploaded documents.
+
+---
+
+## FR-22 Document Download
+
+Students shall be able to download their documents.
+
+---
+
+## FR-23 Document Metadata
+
+Each document should maintain metadata such as:
+
+* Document name
+* Document type
+* Semester
+* Upload date
+* Uploaded by
+* Approval status, if applicable
+
+---
+
+# 10. Thesis Management
+
+## FR-24 Thesis Upload
+
+Students shall be able to upload thesis-related documents.
+
+The thesis section should allow the system to maintain:
+
+* Thesis title
+* Thesis document
+* Submission date
+* Version
+* Approval status
+* Supervisor comments
+* Approval/rejection date
+
+---
+
+## FR-25 Thesis Approval
+
+When a student submits a thesis/document requiring Supervisor approval:
+
+1. Supervisor receives a notification.
+2. Supervisor opens the request.
+3. Supervisor reviews the document.
+4. Supervisor approves or rejects it.
+5. System records the decision.
+6. Student receives a notification.
+
+Possible statuses:
+
+* Draft
+* Submitted
+* Under Review
+* Approved
+* Rejected
+* Resubmission Required
+
+---
+
+# 11. Supervisor Management
+
+## FR-26 Supervisor Assignment
+
+Admin shall be able to assign a Supervisor to a student.
+
+A student shall have:
+
+* One primary Supervisor.
+* Optional Co-Supervisor, if supported by department rules.
+
+---
+
+## FR-27 Supervisor Request
+
+Where the system allows students to select/request a Supervisor:
+
+1. Student selects a faculty member.
+2. Faculty receives an approval request.
+3. Faculty approves/rejects.
+4. If approved, the relationship becomes active.
+5. Admin may review/modify the assignment.
+
+---
+
+## FR-28 Supervisor Dashboard
+
+The Supervisor dashboard shall display information such as:
+
+* Number of assigned students.
+* Students with pending work.
+* Upcoming events.
+* Student deadlines.
+* Pending approvals.
+* Thesis approvals.
+* Course-work approvals.
+* Other pending requests.
+
+---
+
+# 12. Student Filtering
+
+## FR-29 Filter Assigned Students
+
+Supervisors shall be able to filter their assigned students.
+
+Possible filters include:
+
+* Student name
+* Roll number
+* College ID
+* Semester
+* Student type
+* Admission year
+* Research area
+* Academic status
+* Pending deadlines
+* Supervisor status
+* SRC status
+
+The final filter list shall be configurable.
+
+---
+
+# 13. Event Management
+
+## FR-30 Create Event
+
+Supervisors and Admins shall be able to create events.
+
+An event may contain:
+
+* Event name
+* Event type
+* Description
+* Date
+* Start time
+* End time
+* Location/meeting link
+* Organizer
+* Participating students
+* Participating faculty
+* Related semester
+* Deadline, if applicable
+
+---
+
+## FR-31 Multiple Student Event
+
+A Supervisor shall be able to schedule one event for multiple students simultaneously.
+
+Example:
+
+Supervisor selects:
+
+* Student A
+* Student B
+* Student C
+* Student D
+
+and creates:
+
+**Research Progress Seminar — 15 September 2026 — 11:00 AM**
+
+The event shall appear on all selected students' dashboards/calendars.
+
+---
+
+## FR-32 Eligible Student Selection
+
+When creating a specific event, the system shall only display students who are eligible for that event.
+
+Eligibility may depend on:
+
+* Semester
+* Academic status
+* Completed prerequisite work
+* Student type
+* Previous events
+* Department rules
+* Other configured conditions
+
+The eligibility rules should be configurable rather than hardcoded wherever possible.
+
+---
+
+## FR-33 Admin Event Management
+
+Admin shall be able to:
+
+* Create events.
+* Edit events.
+* Delete/cancel events.
+* Schedule events for students.
+* Schedule events for faculty.
+* Assign multiple participants.
+* View all system events.
+
+---
+
+# 14. SRC Committee Management
+
+## FR-34 SRC Committee Creation
+
+Admin shall be able to create an SRC Committee for a student.
+
+The committee may contain:
+
+* Chairperson
+* Supervisor
+* Co-Supervisor
+* SRC members
+* Other configured roles
+
+---
+
+## FR-35 SRC Committee Member Request
+
+If the department workflow requires faculty approval:
+
+1. Student/Admin selects a faculty member.
+2. Faculty receives a request.
+3. Faculty approves/rejects.
+4. Upon approval, the faculty member is added to the committee.
+
+---
+
+## FR-36 SRC Committee Editing
+
+Admin shall be able to:
+
+* Add committee members.
+* Remove committee members.
+* Replace committee members.
+* Change member roles.
+* View committee history.
+
+---
+
+## FR-37 View SRC Committee
+
+Students shall be able to view their current SRC Committee.
+
+Supervisors shall be able to view SRC information of their assigned students.
+
+Admin shall be able to view all SRC Committees.
+
+---
+
+# 15. Notifications
+
+## FR-38 Notification System
+
+The system shall provide an in-app notification system.
+
+Notifications shall be visible through a dedicated **Notification** section.
+
+---
+
+## FR-39 Deadline Notifications
+
+Students shall receive notifications for upcoming deadlines.
+
+Notifications should appear:
+
+* On Dashboard
+* In Notification Center
+* Through email
+
+---
+
+## FR-40 Email Notifications
+
+The system shall send email notifications for important events.
+
+Examples:
+
+* Upcoming deadline.
+* Event scheduled.
+* Event changed/cancelled.
+* Thesis submitted.
+* Thesis approved.
+* Thesis rejected.
+* Course work submitted.
+* Course work approved/rejected.
+* Supervisor request.
+* SRC committee request.
+* Other approval requests.
+
+---
+
+## FR-41 Faculty Notifications
+
+Faculty shall receive notifications for:
+
+* Thesis approval requests.
+* Course approval requests.
+* Supervisor requests.
+* SRC Committee requests.
+* Upcoming events.
+* Other pending student actions.
+
+---
+
+# 16. Admin Management
+
+## FR-42 Student Management
+
+Admin shall have a complete student management interface.
+
+Admin shall be able to:
+
+* View students.
+* Search students.
+* Filter students.
+* Create students.
+* Edit students.
+* View student academic records.
+* Assign supervisors.
+* Manage SRC committees.
+* Activate/deactivate accounts.
+
+---
+
+## FR-43 Faculty Management
+
+Admin shall be able to:
+
+* View faculty.
+* Create faculty accounts.
+* Edit faculty profiles.
+* Assign faculty roles.
+* Activate/deactivate faculty accounts.
+* View students assigned to each faculty member.
+
+---
+
+## FR-44 Global Search
+
+Admin should be able to search across the system using identifiers such as:
+
+* Student name
+* Roll number
+* College ID
+* Faculty name
+* Faculty ID
+
+---
+
+# 17. Student Dashboard
+
+The Student Dashboard shall provide a summarized view of the student's academic status.
+
+The dashboard should contain:
+
+### Profile Summary
+
+* Name
+* Profile photo
+* Roll number
+* Student type
+* Department
+* Supervisor
+
+### Academic Summary
+
+* Current semester
+* Credits earned
+* Required credits
+* Courses
+
+### Upcoming Items
+
+* Upcoming deadlines
+* Upcoming events
+* Pending approvals
+
+### Quick Access
+
+* Forms
+* Documents
+* Thesis
+* Courses
+* Credits
+* SRC Committee
+* Supervisor
+* Timeline
+* Notifications
+
+---
+
+# 18. Supervisor Dashboard
+
+The Supervisor Dashboard shall provide:
+
+### Student Summary
+
+* Total assigned students.
+* Students by semester.
+* Students requiring attention.
+
+### Pending Actions
+
+* Thesis approvals.
+* Course-work approvals.
+* Supervisor requests.
+* SRC requests.
+
+### Upcoming
+
+* Events.
+* Student deadlines.
+
+### Actions
+
+* Create Event.
+* View Students.
+* View Pending Approvals.
+
+---
+
+# 19. Admin Dashboard
+
+The Admin Dashboard shall provide a system-wide overview.
+
+It should contain:
+
+### Students
+
+* Total students.
+* Regular students.
+* Part-time students.
+* Active students.
+* Inactive students.
+
+### Faculty
+
+* Total faculty.
+* Active faculty.
+
+### Academic
+
+* Current semester information.
+* Pending student work.
+* Pending approvals.
+
+### Events
+
+* Upcoming events.
+* Recent events.
+
+### System
+
+* Pending requests.
+* Notifications.
+* Other important administrative alerts.
+
+---
+
+# 20. Access Control
+
+The system shall implement role-based access control (RBAC).
+
+| Feature                | Student | Supervisor | Admin |
+| ---------------------- | ------: | ---------: | ----: |
+| Register               |       ✓ |          ✗ |     ✗ |
+| Login                  |       ✓ |          ✓ |     ✓ |
+| View Own Profile       |       ✓ |          ✗ |     ✓ |
+| Edit Own Profile       |      ✓* |          ✗ |     ✓ |
+| View Assigned Students |       ✗ |          ✓ |     ✓ |
+| View All Students      |       ✗ |          ✗ |     ✓ |
+| Create Student         |       ✗ |          ✗ |     ✓ |
+| Create Faculty         |       ✗ |          ✗ |     ✓ |
+| Assign Supervisor      |       ✗ |          ✗ |     ✓ |
+| Create Event           |       ✗ |          ✓ |     ✓ |
+| Manage All Events      |       ✗ |          ✗ |     ✓ |
+| View Courses/Credits   |       ✓ |          ✓ |     ✓ |
+| Add Course Work        |       ✓ |          ✗ |     ✓ |
+| Approve Course Work    |       ✗ |          ✓ |     ✓ |
+| Upload Documents       |       ✓ |          ✗ |    ✓* |
+| Upload Thesis          |       ✓ |          ✗ |    ✓* |
+| Approve Thesis         |       ✗ |          ✓ |     ✓ |
+| View SRC Committee     |       ✓ |         ✓* |     ✓ |
+| Create SRC Committee   |       ✗ |         ✗* |     ✓ |
+| Manage Students        |       ✗ |          ✗ |     ✓ |
+| Receive Notifications  |       ✓ |          ✓ |     ✓ |
+
+`*` Subject to final business rules.
+
+---
+
+# 21. Core Student Workflow
+
+## New Student
+
+```text
+Open Website
+     ↓
+Student Registration
+     ↓
+Enter College ID / College Email
+     ↓
+OTP Verification
+     ↓
+Account Created
+     ↓
+Login
+     ↓
+First Login?
+     ↓ YES
+Complete Profile
+     ↓
+Student Dashboard
+     ↓
+View Semesters
+     ↓
+Manage Courses / Credits
+     ↓
+Upload Documents
+     ↓
+View Forms
+     ↓
+View Events & Deadlines
+     ↓
+View Supervisor & SRC
+     ↓
+Manage Thesis
+     ↓
+Track Degree Timeline
+```
+
+---
+
+# 22. Supervisor Workflow
+
+```text
+Faculty Login
+     ↓
+Supervisor Dashboard
+     ↓
+View Assigned Students
+     ↓
+Filter/Search Students
+     ↓
+Select Student
+     ↓
+View Complete Student Record
+     ↓
+ ┌───────────────────────┐
+ │ Semester Records       │
+ │ Courses & Credits      │
+ │ Documents              │
+ │ Thesis                 │
+ │ Timeline               │
+ │ SRC Committee          │
+ │ Deadlines              │
+ └───────────────────────┘
+
+Additional Actions:
+     ↓
+Create Event
+     ↓
+Select Event Type
+     ↓
+System Finds Eligible Students
+     ↓
+Select Multiple Students
+     ↓
+Schedule Event
+     ↓
+Notifications Sent
+```
+
+---
+
+# 23. Admin Workflow
+
+```text
+Admin Login
+     ↓
+Admin Dashboard
+     ↓
+ ┌───────────────────────────┐
+ │ Student Management        │
+ │ Faculty Management        │
+ │ Supervisor Assignment     │
+ │ SRC Committee Management  │
+ │ Event Management          │
+ │ Course Management         │
+ │ Form Management           │
+ │ Deadline Management       │
+ │ System Management         │
+ └───────────────────────────┘
+```
+
+---
+
+# 24. Approval Workflow
+
+All approval-based actions should follow a common workflow.
+
+```text
+User Creates/Uploads Request
+          ↓
+       PENDING
+          ↓
+   Assigned Faculty
+          ↓
+     ┌────┴────┐
+     ↓         ↓
+  APPROVED   REJECTED
+     ↓         ↓
+Record       Reason/
+Updated      Comment
+     ↓         ↓
+Notification Sent
+          ↓
+       Student
+```
+
+Examples:
+
+* Thesis approval.
+* Course-work approval.
+* Supervisor request.
+* SRC Committee request.
+
+---
+
+# 25. Non-Functional Requirements
+
+## NFR-01 Security
+
+The system shall:
+
+* Use secure authentication.
+* Hash passwords securely.
+* Protect authenticated routes.
+* Implement role-based authorization.
+* Prevent unauthorized access to student records.
+* Validate uploaded files.
+* Restrict file types and file sizes.
+* Secure API endpoints.
+* Protect sensitive data.
+
+---
+
+## NFR-02 Performance
+
+The application should provide normal page/API responses within an acceptable time under expected system load.
+
+Large document operations should not block normal application operations.
+
+---
+
+## NFR-03 Scalability
+
+The architecture should support an increasing number of:
+
+* Students.
+* Faculty members.
+* Documents.
+* Events.
+* Academic records.
+
+The system should not depend on a fixed number of students or semesters.
+
+---
+
+## NFR-04 Availability
+
+The system should be available to users throughout normal institutional operating periods.
+
+---
+
+## NFR-05 Usability
+
+The interface should be:
+
+* Simple.
+* Responsive.
+* Easy to navigate.
+* Suitable for desktop and mobile devices.
+* Consistent across Student, Faculty, and Admin dashboards.
+
+---
+
+## NFR-06 Auditability
+
+Important actions should be recorded in an audit log.
+
+Examples:
+
+* Profile modification.
+* Supervisor assignment.
+* SRC modification.
+* Document upload.
+* Thesis approval.
+* Course approval.
+* Event creation/modification.
+
+Audit records should contain:
+
+* User
+* Action
+* Timestamp
+* Affected record
+* Previous value, where applicable
+* New value, where applicable
+
+---
+
+# 26. Document Storage Requirements
+
+Uploaded files should not be stored directly inside the primary database.
+
+The system should use dedicated file/object storage.
+
+The database should store metadata such as:
+
+```text
+Document ID
+Student ID
+Semester ID
+Document Type
+File Name
+Storage URL/Key
+Uploaded By
+Upload Date
+Approval Status
+```
+
+---
+
+# 27. Data Relationships
+
+At a high level, the system will contain entities such as:
+
+```text
+User
+ ├── Student
+ │     ├── Semester
+ │     │     ├── Course
+ │     │     ├── Credits
+ │     │     ├── Documents
+ │     │     ├── Forms
+ │     │     └── Events
+ │     │
+ │     ├── Thesis
+ │     ├── Timeline
+ │     ├── Supervisor
+ │     ├── SRC Committee
+ │     └── Notifications
+ │
+ ├── Supervisor/Faculty
+ │     ├── Students
+ │     ├── Events
+ │     └── Approval Requests
+ │
+ └── Admin
+```
+
+---
+
+# 28. Suggested Core Database Entities
+
+The exact database schema will be finalized during system design, but the system should consider the following entities:
+
+1. Users
+2. Students
+3. Faculty
+4. Student Profiles
+5. Semesters
+6. Courses
+7. Student Courses
+8. Credits
+9. Documents
+10. Forms
+11. Thesis
+12. Supervisors
+13. Co-Supervisors
+14. SRC Committees
+15. SRC Members
+16. Events
+17. Event Participants
+18. Deadlines
+19. Notifications
+20. Approval Requests
+21. Audit Logs
+
+---
+
+# 29. Important Business Rules
+
+### BR-01
+
+A Student must belong to exactly one student category:
+
+* Regular
+* Part-Time
+
+### BR-02
+
+A student can have one primary Supervisor.
+
+### BR-03
+
+A Co-Supervisor, if supported, is optional.
+
+### BR-04
+
+A student may have an SRC Committee according to departmental rules.
+
+### BR-05
+
+Students can only view their own academic records.
+
+### BR-06
+
+Supervisors can view records of students assigned to them.
+
+### BR-07
+
+Admins can view and manage all records.
+
+### BR-08
+
+A course submitted by a student shall remain pending until approved by the appropriate Supervisor.
+
+### BR-09
+
+A thesis requiring approval shall remain pending until reviewed by the appropriate Supervisor.
+
+### BR-10
+
+Only eligible students shall be selectable for an event requiring eligibility rules.
+
+### BR-11
+
+Important actions shall generate notifications where applicable.
+
+### BR-12
+
+Deleted academic records should preferably be soft-deleted rather than permanently removed, especially when auditability is required.
+
+---
+
+# 30. Open Decisions / Requirements Requiring Confirmation
+
+The following points need to be finalized before implementation.
+
+## OD-01 College ID vs College Email
+
+The registration requirement mentions both:
+
+* College ID
+* College email
+
+**Recommended approach:** Use the official college email for OTP verification and College ID as the unique student identifier.
+
+---
+
+## OD-02 Student Registration Approval
+
+Currently registration appears to happen automatically after OTP verification.
+
+Need to decide whether:
+
+**Option A:**
+OTP verification → account immediately created.
+
+**Option B:**
+OTP verification → Admin approval → account activated.
+
+---
+
+## OD-03 Supervisor Assignment
+
+Need to decide whether students can request/select their Supervisor themselves.
+
+Recommended workflow:
+
+```text
+Student selects Faculty
+       ↓
+Faculty receives request
+       ↓
+Faculty approves
+       ↓
+Admin confirms/assigns
+       ↓
+Supervisor becomes active
+```
+
+Admin should always retain the ability to override/change the assignment.
+
+---
+
+## OD-04 SRC Committee
+
+Need to finalize whether:
+
+* Only Admin can create the SRC Committee, or
+* Student can propose members and faculty must approve.
+
+Recommended:
+
+```text
+Student/Admin proposes faculty
+          ↓
+Faculty Approval
+          ↓
+Admin Final Confirmation
+          ↓
+SRC Committee Created
+```
+
+---
+
+## OD-05 Semester Structure
+
+The number and naming of semesters should be configurable.
+
+The system should **not** hardcode only a fixed number of semesters.
+
+---
+
+## OD-06 Deadline Rules
+
+Need to define which deadlines are:
+
+* Automatically generated.
+* Created by Admin.
+* Created by Supervisor.
+* Student-specific.
+* Semester-specific.
+
+---
+
+## OD-07 Eligibility Rules
+
+The department should provide rules for determining whether a student is eligible for each event.
+
+Example:
+
+```text
+Event: Comprehensive Examination
+
+Eligible if:
+Semester >= X
+AND required courses completed
+AND required credits >= Y
+```
+
+These rules should preferably be configurable.
+
+---
+
+# 31. MVP Scope
+
+For the first production version, the following should be prioritized:
+
+### Authentication
+
+* Student registration.
+* OTP verification.
+* Student login.
+* Faculty login.
+* Admin login.
+
+### Student
+
+* Profile.
+* Semester management.
+* Courses.
+* Credits.
+* Forms.
+* Documents.
+* Thesis.
+* Supervisor.
+* SRC.
+* Timeline.
+* Notifications.
+
+### Supervisor
+
+* Dashboard.
+* Assigned students.
+* Student details.
+* Event creation.
+* Multiple-student events.
+* Thesis approval.
+* Course approval.
+* Request approvals.
+
+### Admin
+
+* Student management.
+* Faculty management.
+* Supervisor assignment.
+* SRC management.
+* Event management.
+* Forms management.
+* Deadline management.
+
+### Notifications
+
+* Dashboard notifications.
+* Email notifications.
+* Approval notifications.
+* Deadline notifications.
+
+---
+
+# 32. Future Enhancements
+
+Potential future features include:
+
+* Calendar integration.
+* Automatic deadline generation.
+* Advanced analytics.
+* Academic progress charts.
+* Research publication tracking.
+* Conference tracking.
+* Patent tracking.
+* Attendance management.
+* Automated document generation.
+* Digital signatures.
+* WhatsApp/SMS notifications.
+* Mobile application.
+* Advanced reporting.
+* Export student records to PDF/Excel.
+* Automated reminders.
+* Department-level analytics.
+
+---
+
+# 33. Final System Goal
+
+The final system should act as a **single source of truth for a PhD scholar's complete academic journey**.
+
+A student's complete record should be accessible through a unified profile:
+
+```text
+                    STUDENT
+                       │
+        ┌──────────────┼──────────────┐
+        │              │              │
+     PROFILE       ACADEMICS       RESEARCH
+        │              │              │
+        │        ┌─────┴─────┐        │
+        │        │           │        │
+     Personal   Courses    Credits   Thesis
+     Details
+        │
+        ├── Supervisor
+        ├── SRC Committee
+        ├── Documents
+        ├── Forms
+        ├── Events
+        ├── Deadlines
+        ├── Notifications
+        └── Degree Timeline
+```
+
+The system should provide **role-specific dashboards while maintaining a centralized academic record for every student**.
+
+The architecture should be modular so that additional academic processes can be added later without redesigning the entire application.

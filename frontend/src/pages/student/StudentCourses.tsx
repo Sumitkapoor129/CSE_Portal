@@ -25,6 +25,7 @@ export function StudentCourses(): JSX.Element {
     error: semestersError,
     refetch: refetchSemesters,
   } = useApi(studentApi.getSemesters);
+  const { data: profile } = useApi(studentApi.getProfile);
   const [selectedId, setSelectedId] = useState('');
   const semesterList = semesters ?? [];
   const semesterId = selectedId || (semesterList.length > 0 ? semesterList[0]._id : '');
@@ -34,12 +35,13 @@ export function StudentCourses(): JSX.Element {
   );
 
   const [semesterOpen, setSemesterOpen] = useState(false);
-  const [semesterNumber, setSemesterNumber] = useState('');
   const [academicYear, setAcademicYear] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [semesterError, setSemesterError] = useState<string | null>(null);
   const [semesterSubmitting, setSemesterSubmitting] = useState(false);
+
+  const nextSemester = semesterList.reduce((max, semester) => Math.max(max, semester.semesterNumber), 0) + 1;
 
   const [courseOpen, setCourseOpen] = useState(false);
   const [courseCode, setCourseCode] = useState('');
@@ -59,7 +61,6 @@ export function StudentCourses(): JSX.Element {
   };
 
   const openSemesterModal = () => {
-    setSemesterNumber('');
     setAcademicYear('');
     setStartDate('');
     setEndDate('');
@@ -70,11 +71,6 @@ export function StudentCourses(): JSX.Element {
   const handleCreateSemester = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (semesterSubmitting) return;
-    const number = Number.parseInt(semesterNumber, 10);
-    if (!Number.isInteger(number) || number <= 0) {
-      setSemesterError('Enter a valid semester number.');
-      return;
-    }
     if (!academicYear.trim()) {
       setSemesterError('Academic year is required.');
       return;
@@ -83,7 +79,7 @@ export function StudentCourses(): JSX.Element {
     setSemesterError(null);
     try {
       const created = await studentApi.createSemester({
-        semesterNumber: number,
+        semesterNumber: nextSemester,
         academicYear: academicYear.trim(),
         startDate,
         endDate,
@@ -153,6 +149,9 @@ export function StudentCourses(): JSX.Element {
         </div>
       )}
       {error && !loading && <QueryError error={error} onRetry={retryAll} />}
+      {!loading && !error && profile && !profile.supervisor && (
+        <Alert variant="info">A supervisor must be assigned before you can request courses.</Alert>
+      )}
       {!loading && !error && semesterList.length === 0 && (
         <Card>
           <p className="text-sm font-medium text-gray-900">No semesters yet</p>
@@ -174,9 +173,11 @@ export function StudentCourses(): JSX.Element {
                 aria-label="Semester"
                 className="w-full sm:w-56"
               />
-              <Button onClick={openCourseModal} variant="secondary" size="sm">
-                Request Course
-              </Button>
+              {profile?.supervisor && (
+                <Button onClick={openCourseModal} variant="secondary" size="sm">
+                  Request Course
+                </Button>
+              )}
             </div>
           </div>
           <div className="mt-4">
@@ -210,14 +211,7 @@ export function StudentCourses(): JSX.Element {
       <Modal open={semesterOpen} onClose={() => setSemesterOpen(false)} title="Add Semester">
         <form onSubmit={handleCreateSemester} className="space-y-4" noValidate>
           {semesterError && <Alert variant="error">{semesterError}</Alert>}
-          <Input
-            id="semester-number"
-            label="Semester Number"
-            type="number"
-            min={1}
-            value={semesterNumber}
-            onChange={(event) => setSemesterNumber(event.target.value)}
-          />
+          <p className="text-sm text-gray-700">Semester {nextSemester} will be added.</p>
           <Input
             id="semester-year"
             label="Academic Year"

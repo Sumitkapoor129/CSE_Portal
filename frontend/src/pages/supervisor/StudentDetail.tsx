@@ -8,6 +8,7 @@ import { PageHeader } from '../../components/shared/PageHeader';
 import { QueryError } from '../../components/shared/QueryError';
 import { DetailRow } from '../../components/shared/DetailRow';
 import { Alert } from '../../components/ui/Alert';
+import { Avatar } from '../../components/ui/Avatar';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
@@ -103,11 +104,14 @@ export function StudentDetail(): JSX.Element {
           )}
           <Card>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h2 className="text-lg font-semibold text-gray-900">{data.profile.user.name}</h2>
-                <p className="mt-1 text-sm text-gray-500">
-                  {data.profile.rollNumber} · {data.profile.department}
-                </p>
+              <div className="flex items-center gap-3">
+                <Avatar name={data.profile.user.name} photo={data.profile.profilePhoto ?? null} />
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900">{data.profile.user.name}</h2>
+                  <p className="mt-1 text-sm text-gray-500">
+                    {data.profile.rollNumber} · {data.profile.department}
+                  </p>
+                </div>
               </div>
               <Badge label={STUDENT_TYPE_LABELS[data.profile.studentType]} />
             </div>

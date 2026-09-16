@@ -5,6 +5,7 @@ import { authApi } from '../../api/auth';
 import { Alert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
+import { applyServerError } from '../../utils/errors';
 import { required } from '../../utils/validators';
 
 interface FieldErrors {
@@ -56,9 +57,9 @@ export function VerifyOtpPage(): JSX.Element {
       await authApi.verifyOtp(email, otp);
       setSuccessNote('Account activated. Please log in.');
       setSubmitting(false);
-    } catch {
+    } catch (err) {
       setSubmitting(false);
-      setServerError('Unable to verify the OTP. Please check your code and try again.');
+      applyServerError(err, setFieldErrors, setServerError);
     }
   };
 

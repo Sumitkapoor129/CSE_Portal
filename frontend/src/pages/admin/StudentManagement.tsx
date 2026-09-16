@@ -6,6 +6,7 @@ import { useApi } from '../../hooks/useApi';
 import { adminApi } from '../../api/admin';
 import { PageHeader } from '../../components/shared/PageHeader';
 import { Alert } from '../../components/ui/Alert';
+import { Avatar } from '../../components/ui/Avatar';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
@@ -294,6 +295,7 @@ export function StudentManagement(): JSX.Element {
         <Card title="Students" padded={false}>
           <Table
             columns={[
+              { key: 'photo', header: '' },
               { key: 'name', header: 'Name' },
               { key: 'rollNumber', header: 'Roll Number' },
               { key: 'collegeId', header: 'College ID' },
@@ -303,10 +305,13 @@ export function StudentManagement(): JSX.Element {
             ]}
           >
             {students.length === 0 ? (
-              <TableEmpty colSpan={6} message="No students found." />
+              <TableEmpty colSpan={7} message="No students found." />
             ) : (
               students.map((student) => (
                 <TableRow key={student._id}>
+                  <TableCell>
+                    <Avatar name={student.user?.name ?? '—'} photo={student.profilePhoto ?? null} size="sm" />
+                  </TableCell>
                   <TableCell className="font-medium text-gray-900">{student.user?.name ?? '—'}</TableCell>
                   <TableCell className="text-gray-700">{student.rollNumber}</TableCell>
                   <TableCell className="text-gray-700">{student.collegeId}</TableCell>

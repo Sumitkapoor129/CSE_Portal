@@ -1,6 +1,11 @@
 import { apiFetch } from './client';
 import type { AuthUser } from '../types';
 
+export interface AuthTokens {
+  accessToken: string;
+  refreshToken: string;
+}
+
 export interface LoginPayload {
   email: string;
   password: string;
@@ -18,15 +23,21 @@ export interface RegisterPayload {
 
 export const authApi = {
   login(email: string, password: string) {
-    return apiFetch<{ token: string; user: AuthUser }>('/auth/login', {
+    return apiFetch<AuthTokens & { user: AuthUser }>('/auth/login', {
       method: 'POST',
       body: { email, password },
     });
   },
   register(payload: RegisterPayload) {
-    return apiFetch<{ token: string; user: AuthUser; message: string }>('/auth/register', {
+    return apiFetch<AuthTokens & { user: AuthUser; message: string }>('/auth/register', {
       method: 'POST',
       body: payload,
+    });
+  },
+  logout(refreshToken: string) {
+    return apiFetch<{ message: string }>('/auth/logout', {
+      method: 'POST',
+      body: { refreshToken },
     });
   },
   verifyOtp(email: string, otp: string) {

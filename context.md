@@ -149,3 +149,10 @@ Key field notes:
 6. Login `admin@college.edu` / `admin123` — dashboard cards show the seeded numbers (hard-refresh if blank).
 7. Detail per task: read `.superpowers/sdd/frontend-implementation/briefs|reports/` + `progress.md`.
 8. Frontend verification commands (in `frontend/`): `npm test` (19/19), `npm run typecheck`, `npm run build`, `npm run lint` (1 accepted warning).
+
+
+
+
+
+
+

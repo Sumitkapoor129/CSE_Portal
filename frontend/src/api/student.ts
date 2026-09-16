@@ -11,6 +11,7 @@ import type {
   Notification,
   Semester,
   StudentDashboardData,
+  StudentProfileUpdate,
   StudentProfileView,
   Thesis,
   TimelineItem,
@@ -19,7 +20,7 @@ import type {
 export const studentApi = {
   getDashboard: () => apiFetch<StudentDashboardData>('/student/dashboard'),
   getProfile: () => apiFetch<StudentProfileView>('/student/profile'),
-  updateProfile: (payload: { name?: string; researchArea?: string; profilePhoto?: string }) =>
+  updateProfile: (payload: StudentProfileUpdate) =>
     apiFetch<StudentProfileView>('/student/profile', { method: 'PUT', body: payload }),
   getSemesters: () => apiFetch<Semester[]>('/student/semesters'),
   createSemester: (payload: { semesterNumber: number; academicYear: string; startDate: string; endDate: string }) =>

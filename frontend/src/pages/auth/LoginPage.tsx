@@ -5,6 +5,8 @@ import { useAuth } from '../../context/AuthContext';
 import { Alert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
+import { PasswordInput } from '../../components/ui/PasswordInput';
+import { applyServerError } from '../../utils/errors';
 
 interface FieldErrors {
   email?: string;
@@ -53,9 +55,9 @@ export function LoginPage(): JSX.Element {
     try {
       await login(email, password);
       navigate('/', { replace: true });
-    } catch {
+    } catch (err) {
       setSubmitting(false);
-      setServerError('Unable to log in. Please check your email and password.');
+      applyServerError(err, setFieldErrors, setServerError);
     }
   };
 
@@ -79,10 +81,9 @@ export function LoginPage(): JSX.Element {
             placeholder="you@example.com"
           />
 
-          <Input
+          <PasswordInput
             id="password"
             label="Password"
-            type="password"
             value={password}
             onChange={handlePasswordChange}
             error={fieldErrors.password}

@@ -20,6 +20,7 @@ const StudentEvents = lazy(() => import('./pages/student/StudentEvents'));
 const StudentDeadlines = lazy(() => import('./pages/student/StudentDeadlines'));
 const StudentDocuments = lazy(() => import('./pages/student/StudentDocuments'));
 const StudentNotifications = lazy(() => import('./pages/student/StudentNotifications'));
+const StudentOnboarding = lazy(() => import('./pages/student/StudentOnboarding'));
 const SupervisorDashboard = lazy(() => import('./pages/supervisor/SupervisorDashboard'));
 const StudentList = lazy(() => import('./pages/supervisor/StudentList'));
 const StudentDetail = lazy(() => import('./pages/supervisor/StudentDetail'));
@@ -67,6 +68,7 @@ export default function App() {
                     <Route path="deadlines" element={<StudentDeadlines />} />
                     <Route path="documents" element={<StudentDocuments />} />
                     <Route path="notifications" element={<StudentNotifications />} />
+                    <Route path="complete-profile" element={<StudentOnboarding />} />
                   </Route>
                   <Route path="/supervisor" element={<ProtectedRoute roles={['supervisor']} />}>
                     <Route index element={<SupervisorDashboard />} />

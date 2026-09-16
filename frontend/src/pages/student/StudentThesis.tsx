@@ -20,6 +20,7 @@ import { THESIS_STATUS_LABELS, THESIS_STATUS_STYLE } from '../../utils/constants
 export function StudentThesis(): JSX.Element {
   const { user } = useAuth();
   const { data, loading, error, refetch } = useApi(studentApi.getTheses);
+  const { data: profile } = useApi(studentApi.getProfile);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [title, setTitle] = useState('');
@@ -67,11 +68,16 @@ export function StudentThesis(): JSX.Element {
         title="Thesis"
         description="Submit and track versions of your doctoral thesis."
         actions={
-          <Button onClick={openModal} variant="secondary">
-            Submit Thesis
-          </Button>
+          profile?.supervisor ? (
+            <Button onClick={openModal} variant="secondary">
+              Submit Thesis
+            </Button>
+          ) : undefined
         }
       />
+      {!loading && !error && profile && !profile.supervisor && (
+        <Alert variant="info">A supervisor must be assigned before you can submit your thesis.</Alert>
+      )}
       {loading && <SkeletonTable rows={4} />}
       {error && !loading && <QueryError error={error} onRetry={refetch} />}
       {!loading && !error && (

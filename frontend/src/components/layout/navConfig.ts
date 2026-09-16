@@ -37,6 +37,14 @@ export const NAV_ITEMS: Record<UserRole, NavItem[]> = {
   ],
 };
 
+export function getNavItemsForRole(user: { role: UserRole; isProfileComplete?: boolean }): NavItem[] {
+  const items = [...NAV_ITEMS[user.role]];
+  if (user.role === 'student' && user.isProfileComplete === false) {
+    items.unshift({ to: '/student/complete-profile', label: 'Complete Profile' });
+  }
+  return items;
+}
+
 export const NAV_LINK_BASE = 'flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors';
 export const NAV_LINK_ACTIVE = 'bg-blue-50 text-blue-700 font-medium';
 export const NAV_LINK_INACTIVE = 'text-gray-600 hover:bg-gray-100 hover:text-gray-900';

@@ -2,14 +2,14 @@ import { NavLink } from 'react-router-dom';
 import type { JSX } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { cn } from '../../utils/cn';
-import { NAV_ITEMS, NAV_LINK_ACTIVE, NAV_LINK_BASE, NAV_LINK_INACTIVE, isNavIndex } from './navConfig';
+import { getNavItemsForRole, NAV_LINK_ACTIVE, NAV_LINK_BASE, NAV_LINK_INACTIVE, isNavIndex } from './navConfig';
 
 export function NavList({ onNavigate }: { onNavigate?: () => void }): JSX.Element {
   const { user } = useAuth();
 
   if (!user) return <></>;
 
-  const items = NAV_ITEMS[user.role];
+  const items = getNavItemsForRole(user);
 
   return (
     <nav aria-label="Main navigation" className="flex-1 overflow-y-auto px-3 py-4">

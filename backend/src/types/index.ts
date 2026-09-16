@@ -75,6 +75,14 @@ export interface IUser {
   updatedAt: Date;
 }
 
+export interface IRefreshToken {
+  user: string;
+  tokenHash: string;
+  expiresAt: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface IStudentProfile {
   user: string;
   collegeId: string;
@@ -85,6 +93,16 @@ export interface IStudentProfile {
   admissionDate: Date;
   requiredCredits: number;
   profilePhoto?: string;
+  dateOfBirth?: Date;
+  gender?: string;
+  bloodGroup?: string;
+  category?: string;
+  phone?: string;
+  address?: string;
+  lastDegree?: string;
+  institution?: string;
+  graduationYear?: number;
+  qualification?: string;
   supervisor?: string;
   coSupervisor?: string;
   srcCommittee?: string;
