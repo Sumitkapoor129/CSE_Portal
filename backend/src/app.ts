@@ -25,21 +25,46 @@ app.use(cors({ origin: env.CORS_ORIGINS ? env.CORS_ORIGINS.split(',').map(s => s
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on('finish', () => {
+    console.log(`${req.method} ${req.originalUrl} ${res.statusCode} - ${Date.now() - start}ms`);
+  });
+  next();
+});
+
+const parsePositiveInt = (value: string | undefined, fallback: number): number => {
+  const parsed = value !== undefined ? parseInt(value, 10) : NaN;
+  return Number.isNaN(parsed) || parsed <= 0 ? fallback : parsed;
+};
+
+const rateLimitWindowMs = parsePositiveInt(
+  process.env.RATE_LIMIT_WINDOW_MS,
+  15 * 60 * 1000,
+);
+const rateLimitMax = parsePositiveInt(process.env.RATE_LIMIT_MAX, 1000);
+const authRateLimitMax = parsePositiveInt(process.env.AUTH_RATE_LIMIT_MAX, 30);
+
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100,
+  windowMs: rateLimitWindowMs,
+  max: rateLimitMax,
+  standardHeaders: true,
   message: { message: 'Too many requests, please try again later' },
 });
 app.use('/api', limiter);
 
-// Stricter tier for the brute-forceable auth surface (OTP verify, login, register, refresh).
+// Stricter tier ONLY for brute-forceable routes (login, register, verify-otp).
+// High-frequency routes (GET /me, PUT /change-password, POST /refresh, POST /logout)
+// are governed only by the global limiter above.
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 30,
+  windowMs: rateLimitWindowMs,
+  max: authRateLimitMax,
   standardHeaders: true,
   message: { message: 'Too many auth attempts, please try again later' },
 });
-app.use('/api/auth', authLimiter);
+app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/register', authLimiter);
+app.use('/api/auth/verify-otp', authLimiter);
 
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -56,7 +81,8 @@ const startDeadlineScheduler = () => {
   const run = async () => {
     await checkDeadlines({ daysAhead: 7, log: true });
   };
-  run();
+  // Defer first run so it never contends with startup + first requests on a cold pool.
+  setImmediate(run);
   const interval = setInterval(run, DEADLINE_CHECK_INTERVAL_MS);
   return interval;
 };

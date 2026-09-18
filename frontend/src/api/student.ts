@@ -1,4 +1,5 @@
 import { apiFetch } from './client';
+import type { ApiOpts } from './client';
 import type {
   Course,
   Credits,
@@ -18,31 +19,31 @@ import type {
 } from '../types';
 
 export const studentApi = {
-  getDashboard: () => apiFetch<StudentDashboardData>('/student/dashboard'),
-  getProfile: () => apiFetch<StudentProfileView>('/student/profile'),
+  getDashboard: (opts?: ApiOpts) => apiFetch<StudentDashboardData>('/student/dashboard', { signal: opts?.signal }),
+  getProfile: (opts?: ApiOpts) => apiFetch<StudentProfileView>('/student/profile', { signal: opts?.signal }),
   updateProfile: (payload: StudentProfileUpdate) =>
     apiFetch<StudentProfileView>('/student/profile', { method: 'PUT', body: payload }),
-  getSemesters: () => apiFetch<Semester[]>('/student/semesters'),
+  getSemesters: (opts?: ApiOpts) => apiFetch<Semester[]>('/student/semesters', { signal: opts?.signal }),
   createSemester: (payload: { semesterNumber: number; academicYear: string; startDate: string; endDate: string }) =>
     apiFetch<Semester>('/student/semesters', { method: 'POST', body: payload }),
-  getCourses: (semesterId: string) => apiFetch<Course[]>(`/student/semesters/${semesterId}/courses`),
+  getCourses: (semesterId: string, opts?: ApiOpts) => apiFetch<Course[]>(`/student/semesters/${semesterId}/courses`, { signal: opts?.signal }),
   addCourse: (semesterId: string, payload: { courseCode: string; courseName: string; credits: number }) =>
     apiFetch<Course>(`/student/semesters/${semesterId}/courses`, { method: 'POST', body: payload }),
-  getCredits: (semesterId?: string) =>
-    apiFetch<CreditsListResponse | Credits>('/student/credits', semesterId ? { query: { semesterId } } : undefined),
-  getDocuments: () => apiFetch<DocumentView[]>('/student/documents'),
+  getCredits: (semesterId?: string, opts?: ApiOpts) =>
+    apiFetch<CreditsListResponse | Credits>('/student/credits', { ...(semesterId ? { query: { semesterId } } : {}), signal: opts?.signal }),
+  getDocuments: (opts?: ApiOpts) => apiFetch<DocumentView[]>('/student/documents', { signal: opts?.signal }),
   uploadDocument: (payload: { documentName: string; documentType: string; fileUrl: string; semester?: string }) =>
     apiFetch<DocumentView>('/student/documents', { method: 'POST', body: payload }),
-  getTheses: () => apiFetch<Thesis[]>('/student/thesis'),
+  getTheses: (opts?: ApiOpts) => apiFetch<Thesis[]>('/student/thesis', { signal: opts?.signal }),
   submitThesis: (payload: { title: string; documentUrl: string }) =>
     apiFetch<Thesis>('/student/thesis', { method: 'POST', body: payload }),
-  getTimeline: () => apiFetch<TimelineItem[]>('/student/timeline'),
-  getMilestones: () => apiFetch<Milestone[]>('/student/milestones'),
-  getEvents: (upcoming?: boolean) =>
-    apiFetch<EventView[]>('/student/events', upcoming ? { query: { upcoming } } : undefined),
-  getDeadlines: (upcoming?: boolean) =>
-    apiFetch<Deadline[]>('/student/deadlines', upcoming ? { query: { upcoming } } : undefined),
-  getForms: () => apiFetch<Form[]>('/student/forms'),
-  getNotifications: () => apiFetch<Notification[]>('/student/notifications'),
+  getTimeline: (opts?: ApiOpts) => apiFetch<TimelineItem[]>('/student/timeline', { signal: opts?.signal }),
+  getMilestones: (opts?: ApiOpts) => apiFetch<Milestone[]>('/student/milestones', { signal: opts?.signal }),
+  getEvents: (upcoming?: boolean, opts?: ApiOpts) =>
+    apiFetch<EventView[]>('/student/events', { ...(upcoming ? { query: { upcoming } } : {}), signal: opts?.signal }),
+  getDeadlines: (upcoming?: boolean, opts?: ApiOpts) =>
+    apiFetch<Deadline[]>('/student/deadlines', { ...(upcoming ? { query: { upcoming } } : {}), signal: opts?.signal }),
+  getForms: (opts?: ApiOpts) => apiFetch<Form[]>('/student/forms', { signal: opts?.signal }),
+  getNotifications: (opts?: ApiOpts) => apiFetch<Notification[]>('/student/notifications', { signal: opts?.signal }),
   markNotificationRead: (id: string) => apiFetch<Notification>(`/student/notifications/${id}/read`, { method: 'PUT' }),
 };

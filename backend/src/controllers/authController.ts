@@ -46,7 +46,7 @@ export const registerStudent = asyncHandler(async (req: Request, res: Response) 
   const existingUser = await User.findOne({ email: email.toLowerCase() });
   if (existingUser) throw new AppError('An account with this email already exists. Try logging in.', 409, { email: 'This email is already registered.' });
 
-  const hashedPassword = await bcrypt.hash(password, 12);
+  const hashedPassword = await bcrypt.hash(password, 10);
 
   const user = await User.create({
     email: email.toLowerCase(),
@@ -157,7 +157,7 @@ export const logout = asyncHandler(async (req: Request, res: Response) => {
 });
 
 export const getMe = asyncHandler(async (req: AuthRequest, res: Response) => {
-  const user = await User.findById(req.user!.id);
+  const user = await User.findById(req.user!.id).lean();
   if (!user) {
     throw new AppError('User not found', 404);
   }
@@ -166,7 +166,8 @@ export const getMe = asyncHandler(async (req: AuthRequest, res: Response) => {
       .populate('supervisor', 'employeeId department designation')
       .populate('coSupervisor', 'employeeId department designation')
       .populate('srcCommittee')
-    : await FacultyProfile.findOne({ user: user._id });
+      .lean()
+    : await FacultyProfile.findOne({ user: user._id }).lean();
   res.status(200).json({
     success: true,
     data: {
@@ -198,7 +199,7 @@ export const changePassword = asyncHandler(async (req: AuthRequest, res: Respons
     throw new AppError('Current password is incorrect', 401);
   }
 
-  user.password = await bcrypt.hash(newPassword, 12);
+  user.password = await bcrypt.hash(newPassword, 10);
   await user.save();
 
   res.status(200).json({

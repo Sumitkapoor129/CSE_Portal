@@ -14,8 +14,8 @@ import { Skeleton } from '../../components/ui/Skeleton';
 
 export function SupervisorAssignment(): JSX.Element {
   const { user } = useAuth();
-  const studentsReq = useApi(() => adminApi.listStudents({ limit: 100 }), []);
-  const facultyReq = useApi(() => adminApi.listFaculty({ limit: 100 }), []);
+  const studentsReq = useApi((opts) => adminApi.listStudents({ limit: 100 }, opts), []);
+  const facultyReq = useApi((opts) => adminApi.listFaculty({ limit: 100 }, opts), []);
 
   const [studentId, setStudentId] = useState('');
   const [supervisorId, setSupervisorId] = useState('');

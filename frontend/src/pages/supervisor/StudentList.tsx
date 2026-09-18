@@ -46,7 +46,7 @@ export function StudentList(): JSX.Element {
   }, [rollNumber, semester, researchArea]);
 
   const { data, loading, error, refetch } = useApi(
-    () =>
+    (opts) =>
       supervisorApi.getStudents({
         name: appliedName || undefined,
         rollNumber: appliedSecondary.rollNumber || undefined,
@@ -55,7 +55,7 @@ export function StudentList(): JSX.Element {
         researchArea: appliedSecondary.researchArea || undefined,
         page,
         limit: 20,
-      }),
+      }, opts),
     [appliedName, appliedSecondary, studentType, page]
   );
 
@@ -95,7 +95,6 @@ export function StudentList(): JSX.Element {
             value={rollNumber}
             onChange={(event) => {
               setRollNumber(event.target.value);
-              setPage(1);
             }}
             placeholder="e.g. 22CSP001"
           />
@@ -105,7 +104,6 @@ export function StudentList(): JSX.Element {
             value={semester}
             onChange={(event) => {
               setSemester(event.target.value);
-              setPage(1);
             }}
             placeholder="e.g. 2"
             type="number"
@@ -127,7 +125,6 @@ export function StudentList(): JSX.Element {
             value={researchArea}
             onChange={(event) => {
               setResearchArea(event.target.value);
-              setPage(1);
             }}
             placeholder="e.g. NLP"
           />

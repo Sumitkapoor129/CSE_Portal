@@ -17,7 +17,7 @@ export function StudentDeadlines(): JSX.Element {
   const { user } = useAuth();
   const [active, setActive] = useState<'upcoming' | 'all'>('upcoming');
   const { data, loading, error, refetch } = useApi(
-    () => studentApi.getDeadlines(active === 'upcoming' ? true : undefined),
+    (opts) => studentApi.getDeadlines(active === 'upcoming' ? true : undefined, opts),
     [active]
   );
 

@@ -31,7 +31,7 @@ export function StudentCourses(): JSX.Element {
   const semesterList = semesters ?? [];
   const semesterId = selectedId || (semesterList.length > 0 ? semesterList[0]._id : '');
   const { data: courses, loading: coursesLoading, error: coursesError, refetch: refetchCourses } = useApi(
-    () => (semesterId ? studentApi.getCourses(semesterId) : Promise.resolve([])),
+    (opts) => (semesterId ? studentApi.getCourses(semesterId, opts) : Promise.resolve([])),
     [semesterId]
   );
 

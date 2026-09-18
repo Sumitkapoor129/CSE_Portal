@@ -11,7 +11,7 @@ export const seedAdmin = async (): Promise<void> => {
       return;
     }
 
-    const hashedPassword = await bcrypt.hash(env.ADMIN_PASSWORD, 12);
+    const hashedPassword = await bcrypt.hash(env.ADMIN_PASSWORD, 10);
     await User.create({
       email: env.ADMIN_EMAIL,
       password: hashedPassword,

@@ -38,7 +38,7 @@ export function SupervisorEvents(): JSX.Element {
   const { user } = useAuth();
   const [page, setPage] = useState(1);
   const { data, loading, error, refetch } = useApi(
-    () => supervisorApi.getEvents({ page, limit: 10 }),
+    (opts) => supervisorApi.getEvents({ page, limit: 10 }, opts),
     [page]
   );
 

@@ -104,10 +104,10 @@ export function GlobalSearch(): JSX.Element {
   const [formError, setFormError] = useState<string | null>(null);
 
   const { data, loading, error, refetch } = useApi(
-    () =>
+    (opts) =>
       applied === null
         ? Promise.resolve({ students: [] as unknown[], faculty: [] as unknown[] })
-        : adminApi.globalSearch(applied),
+        : adminApi.globalSearch(applied, opts),
     [applied]
   );
 

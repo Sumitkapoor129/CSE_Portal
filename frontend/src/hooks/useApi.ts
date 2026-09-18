@@ -7,7 +7,17 @@ export interface UseApiResult<T> {
   refetch: () => void;
 }
 
-export function useApi<T>(fetcher: () => Promise<T>, deps: unknown[] = []): UseApiResult<T> {
+function isAbortError(err: unknown): boolean {
+  return (
+    (err instanceof DOMException && err.name === 'AbortError') ||
+    (typeof err === 'object' && err !== null && (err as { name?: unknown }).name === 'AbortError')
+  );
+}
+
+export function useApi<T>(
+  fetcher: (opts: { signal: AbortSignal }) => Promise<T>,
+  deps: unknown[] = []
+): UseApiResult<T> {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -16,22 +26,25 @@ export function useApi<T>(fetcher: () => Promise<T>, deps: unknown[] = []): UseA
   fetcherRef.current = fetcher;
 
   useEffect(() => {
+    const controller = new AbortController();
     let cancelled = false;
     setLoading(true);
     setError(null);
     fetcherRef
-      .current()
+      .current({ signal: controller.signal })
       .then((result) => {
         if (!cancelled) setData(result);
       })
       .catch((err: unknown) => {
-        if (!cancelled) setError(err instanceof Error ? err.message : 'Something went wrong');
+        if (cancelled || controller.signal.aborted || isAbortError(err)) return;
+        setError(err instanceof Error ? err.message : 'Something went wrong');
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
     return () => {
       cancelled = true;
+      controller.abort();
     };
   }, [tick, ...deps]);
 

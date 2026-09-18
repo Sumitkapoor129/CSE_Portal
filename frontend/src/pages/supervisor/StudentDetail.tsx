@@ -45,7 +45,7 @@ export function StudentDetail(): JSX.Element {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const { data, loading, error, refetch } = useApi(
-    () => supervisorApi.getStudentDetail(studentId ?? ''),
+    (opts) => supervisorApi.getStudentDetail(studentId ?? '', opts),
     [studentId]
   );
 

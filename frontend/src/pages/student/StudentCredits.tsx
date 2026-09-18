@@ -17,7 +17,7 @@ function isCreditsListResponse(value: CreditsListResponse | Credits | null): val
 
 export function StudentCredits(): JSX.Element {
   const { user } = useAuth();
-  const { data, loading, error, refetch } = useApi(studentApi.getCredits);
+  const { data, loading, error, refetch } = useApi((opts) => studentApi.getCredits(undefined, opts));
   const { data: profile } = useApi(studentApi.getProfile);
   const { data: semesters } = useApi(studentApi.getSemesters);
 

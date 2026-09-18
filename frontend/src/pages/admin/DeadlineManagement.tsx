@@ -51,10 +51,10 @@ export function DeadlineManagement(): JSX.Element {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const { data, loading, error, refetch } = useApi(
-    () => adminApi.listDeadlines({ page, limit: 10 }),
+    (opts) => adminApi.listDeadlines({ page, limit: 10 }, opts),
     [page]
   );
-  const studentsReq = useApi(() => adminApi.listStudents({ limit: 100 }), []);
+  const studentsReq = useApi((opts) => adminApi.listStudents({ limit: 100 }, opts), []);
 
   if (user?.role !== 'admin') return <Navigate to="/" replace />;
 

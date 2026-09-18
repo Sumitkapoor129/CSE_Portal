@@ -27,7 +27,7 @@ export function StudentDocuments(): JSX.Element {
   const { data: documents, loading: documentsLoading, error: documentsError, refetch: refetchDocuments } =
     useApi(studentApi.getDocuments);
   const { data: forms, loading: formsLoading, error: formsError, refetch: refetchForms } = useApi(
-    () => (active === 'forms' ? studentApi.getForms() : Promise.resolve([])),
+    (opts) => (active === 'forms' ? studentApi.getForms(opts) : Promise.resolve([])),
     [active]
   );
   const { data: semesters } = useApi(studentApi.getSemesters);

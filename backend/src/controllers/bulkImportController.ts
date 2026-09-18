@@ -319,7 +319,7 @@ async function importStudents(rows: Record<string, unknown>[], adminId: string):
         throw new AppError('Roll number already exists', 409);
       }
 
-      const hashedPassword = await bcrypt.hash(password, 12);
+      const hashedPassword = await bcrypt.hash(password, 10);
 
       const user = await User.create({
         email,
@@ -434,7 +434,7 @@ async function importFaculty(rows: Record<string, unknown>[], adminId: string): 
         throw new AppError('Employee ID already exists', 409);
       }
 
-      const hashedPassword = await bcrypt.hash(password, 12);
+      const hashedPassword = await bcrypt.hash(password, 10);
 
       const user = await User.create({
         email,

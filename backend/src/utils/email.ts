@@ -4,7 +4,7 @@ import { env } from '../config/env';
 const transporter = nodemailer.createTransport({
   host: env.SMTP_HOST,
   port: env.SMTP_PORT,
-  secure: false,
+  secure: env.SMTP_PORT === 465,
   auth: {
     user: env.SMTP_USER,
     pass: env.SMTP_PASS,
@@ -16,13 +16,13 @@ export const sendEmail = async (
   subject: string,
   html: string
 ): Promise<void> => {
-  if (!env.SMTP_USER) {
+  if (!env.SMTP_USER || !env.SMTP_PASS) {
     console.log(`[EMAIL] To: ${to} | Subject: ${subject}`);
     return;
   }
 
   await transporter.sendMail({
-    from: `"CSE Portal" <${env.SMTP_USER}>`,
+    from: `"CSE Portal" <${env.SMTP_FROM || env.SMTP_USER}>`,
     to,
     subject,
     html,

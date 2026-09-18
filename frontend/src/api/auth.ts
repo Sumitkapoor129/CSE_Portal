@@ -1,4 +1,5 @@
 import { apiFetch } from './client';
+import type { ApiOpts } from './client';
 import type { AuthUser } from '../types';
 
 export interface AuthTokens {
@@ -46,8 +47,8 @@ export const authApi = {
       body: { email, otp },
     });
   },
-  me() {
-    return apiFetch<AuthUser & { profile?: unknown }>('/auth/me');
+  me(opts?: ApiOpts) {
+    return apiFetch<AuthUser & { profile?: unknown }>('/auth/me', { signal: opts?.signal });
   },
   changePassword(currentPassword: string, newPassword: string) {
     return apiFetch<{ message: string }>('/auth/change-password', {

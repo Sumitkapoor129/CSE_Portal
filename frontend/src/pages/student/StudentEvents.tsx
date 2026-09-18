@@ -18,7 +18,7 @@ export function StudentEvents(): JSX.Element {
   const { user } = useAuth();
   const [active, setActive] = useState<'upcoming' | 'all'>('upcoming');
   const { data, loading, error, refetch } = useApi(
-    () => studentApi.getEvents(active === 'upcoming' ? true : undefined),
+    (opts) => studentApi.getEvents(active === 'upcoming' ? true : undefined, opts),
     [active]
   );
 

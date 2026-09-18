@@ -90,14 +90,14 @@ export function StudentManagement(): JSX.Element {
   }, [department]);
 
   const { data, loading, error, refetch } = useApi(
-    () =>
+    (opts) =>
       adminApi.listStudents({
         search: appliedName || undefined,
         studentType: studentType || undefined,
         department: appliedDepartment || undefined,
         page,
         limit: 10,
-      }),
+      }, opts),
     [appliedName, studentType, appliedDepartment, page]
   );
 
@@ -284,7 +284,6 @@ export function StudentManagement(): JSX.Element {
             value={department}
             onChange={(event) => {
               setDepartment(event.target.value);
-              setPage(1);
             }}
             placeholder="e.g. CSE"
           />

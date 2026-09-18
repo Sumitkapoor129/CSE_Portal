@@ -17,6 +17,9 @@ const deadlineSchema = new Schema<any>(
 );
 
 deadlineSchema.index({ notificationSent: 1, dueDate: 1 });
+deadlineSchema.index({ student: 1, dueDate: 1 });
+deadlineSchema.index({ semester: 1, dueDate: 1 });
+deadlineSchema.index({ dueDate: 1 });
 
 export const Deadline = mongoose.model<IDeadlineDocument>('Deadline', deadlineSchema);
 

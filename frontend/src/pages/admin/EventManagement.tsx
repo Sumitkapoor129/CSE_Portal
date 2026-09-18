@@ -44,7 +44,7 @@ export function EventManagement(): JSX.Element {
   const { user } = useAuth();
   const [page, setPage] = useState(1);
   const { data, loading, error, refetch } = useApi(
-    () => adminApi.listEvents({ page, limit: 10 }),
+    (opts) => adminApi.listEvents({ page, limit: 10 }, opts),
     [page]
   );
 

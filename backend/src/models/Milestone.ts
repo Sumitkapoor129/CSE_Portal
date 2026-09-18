@@ -19,5 +19,6 @@ const milestoneSchema = new Schema<any>(
 );
 
 milestoneSchema.index({ student: 1, key: 1 }, { unique: true });
+milestoneSchema.index({ student: 1, order: 1 });
 
 export const Milestone = mongoose.model<IMilestoneDocument>('Milestone', milestoneSchema);

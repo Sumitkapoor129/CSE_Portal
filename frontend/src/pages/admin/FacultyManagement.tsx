@@ -84,13 +84,13 @@ export function FacultyManagement(): JSX.Element {
   }, [department]);
 
   const { data, loading, error, refetch } = useApi(
-    () =>
+    (opts) =>
       adminApi.listFaculty({
         search: appliedSearch || undefined,
         department: appliedDepartment || undefined,
         page,
         limit: 10,
-      }),
+      }, opts),
     [appliedSearch, appliedDepartment, page]
   );
 
@@ -262,7 +262,6 @@ export function FacultyManagement(): JSX.Element {
             value={department}
             onChange={(event) => {
               setDepartment(event.target.value);
-              setPage(1);
             }}
             placeholder="e.g. CSE"
           />

@@ -45,7 +45,7 @@ export const seedMilestones = async (studentId: string): Promise<void> => {
 };
 
 export const getMilestones = async (studentId: string) => {
-  return Milestone.find({ student: studentId }).sort({ order: 1 });
+  return Milestone.find({ student: studentId }).sort({ order: 1 }).lean();
 };
 
 export const updateMilestone = async (

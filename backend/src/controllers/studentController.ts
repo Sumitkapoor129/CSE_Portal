@@ -44,7 +44,8 @@ export const getProfile = asyncHandler(async (req: AuthRequest, res: Response) =
   const profile = await StudentProfile.findOne({ user: req.user!.id })
     .populate('user', 'name email role')
     .populate('supervisor', 'employeeId department designation')
-    .populate('srcCommittee');
+    .populate('srcCommittee')
+    .lean();
 
   if (!profile) {
     throw new AppError('Student profile not found', 404);
@@ -108,7 +109,7 @@ export const getSemesters = asyncHandler(async (req: AuthRequest, res: Response)
     throw new AppError('Student profile not found', 404);
   }
 
-  const semesters = await Semester.find({ student: profile._id }).sort({ semesterNumber: 1 });
+  const semesters = await Semester.find({ student: profile._id }).sort({ semesterNumber: 1 }).lean();
 
   res.status(200).json({ success: true, data: semesters });
 });
@@ -174,7 +175,7 @@ export const getCourses = asyncHandler(async (req: AuthRequest, res: Response) =
     throw new AppError('Semester not found', 404);
   }
 
-  const courses = await Course.find({ semester: semester._id });
+  const courses = await Course.find({ semester: semester._id }).lean();
 
   res.status(200).json({ success: true, data: courses });
 });
@@ -245,7 +246,7 @@ export const getCredits = asyncHandler(async (req: AuthRequest, res: Response) =
     return;
   }
 
-  const credits = await Credits.find({ student: profile._id });
+  const credits = await Credits.find({ student: profile._id }).lean();
   const total = credits.reduce((sum, c) => sum + c.earnedCredits, 0);
 
   res.status(200).json({
@@ -265,7 +266,8 @@ export const getDocuments = asyncHandler(async (req: AuthRequest, res: Response)
 
   const documents = await DocumentModel.find({ student: profile._id })
     .populate('semester', 'semesterNumber academicYear')
-    .sort({ uploadDate: -1 });
+    .sort({ uploadDate: -1 })
+    .lean();
 
   res.status(200).json({ success: true, data: documents });
 });
@@ -312,7 +314,7 @@ export const getThesis = asyncHandler(async (req: AuthRequest, res: Response) =>
     throw new AppError('Student profile not found', 404);
   }
 
-  const thesis = await Thesis.find({ student: profile._id }).sort({ version: -1 });
+  const thesis = await Thesis.find({ student: profile._id }).sort({ version: -1 }).lean();
 
   res.status(200).json({ success: true, data: thesis });
 });
@@ -360,7 +362,7 @@ export const getTimeline = asyncHandler(async (req: AuthRequest, res: Response) 
     throw new AppError('Student profile not found', 404);
   }
 
-  const semesters = await Semester.find({ student: profile._id }).sort({ semesterNumber: 1 });
+  const semesters = await Semester.find({ student: profile._id }).sort({ semesterNumber: 1 }).lean();
 
   const timeline: Array<Record<string, unknown>> = semesters.map((sem) => ({
     type: 'semester',
@@ -414,7 +416,7 @@ export const getTimeline = asyncHandler(async (req: AuthRequest, res: Response) 
 });
 
 export const getNotifications = asyncHandler(async (req: AuthRequest, res: Response) => {
-  const notifications = await Notification.find({ user: req.user!.id }).sort({ createdAt: -1 });
+  const notifications = await Notification.find({ user: req.user!.id }).sort({ createdAt: -1 }).lean();
 
   res.status(200).json({ success: true, data: notifications });
 });
@@ -437,13 +439,14 @@ export const getDashboard = asyncHandler(async (req: AuthRequest, res: Response)
   const profile = await StudentProfile.findOne({ user: req.user!.id })
     .populate('user', 'name email role')
     .populate('supervisor', 'employeeId department designation')
-    .populate('srcCommittee');
+    .populate('srcCommittee')
+    .lean();
 
   if (!profile) {
     throw new AppError('Student profile not found', 404);
   }
 
-  const semesterDocs = await Semester.find({ student: profile._id }).select('semesterNumber');
+  const semesterDocs = await Semester.find({ student: profile._id }).select('semesterNumber').lean();
   const semesterNumbers = semesterDocs.map((s) => s.semesterNumber);
   const now = new Date();
 
@@ -518,7 +521,8 @@ export const getMyEvents = asyncHandler(async (req: AuthRequest, res: Response) 
   const events = await Event.find(filter)
     .populate('organizer', 'name email')
     .populate('semester', 'semesterNumber academicYear')
-    .sort({ date: 1 });
+    .sort({ date: 1 })
+    .lean();
 
   res.status(200).json({ success: true, data: events });
 });
@@ -529,7 +533,7 @@ export const getMyDeadlines = asyncHandler(async (req: AuthRequest, res: Respons
     throw new AppError('Student profile not found', 404);
   }
 
-  const semesterDocs = await Semester.find({ student: profile._id }).select('semesterNumber');
+  const semesterDocs = await Semester.find({ student: profile._id }).select('semesterNumber').lean();
   const semesterNumbers = semesterDocs.map((s) => s.semesterNumber);
 
   const filter: Record<string, any> = {
@@ -545,7 +549,8 @@ export const getMyDeadlines = asyncHandler(async (req: AuthRequest, res: Respons
     filter.dueDate = { $gte: new Date() };
   }
 
-  const deadlines = await Deadline.find(filter).sort({ dueDate: 1 });
+  // ponytail: capped at 100 — add pagination if students ever need full history
+  const deadlines = await Deadline.find(filter).sort({ dueDate: 1 }).limit(100).lean();
 
   res.status(200).json({ success: true, data: deadlines });
 });
@@ -585,7 +590,7 @@ export const getMyForms = asyncHandler(async (req: AuthRequest, res: Response) =
     });
   }
 
-  const forms = await query;
+  const forms = await query.lean();
 
   res.status(200).json({ success: true, data: forms });
 });

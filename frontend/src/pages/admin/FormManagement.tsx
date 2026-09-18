@@ -30,7 +30,7 @@ export function FormManagement(): JSX.Element {
   const { user } = useAuth();
   const [page, setPage] = useState(1);
   const { data, loading, error, refetch } = useApi(
-    () => adminApi.listForms({ page, limit: 10 }),
+    (opts) => adminApi.listForms({ page, limit: 10 }, opts),
     [page]
   );
 

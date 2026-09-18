@@ -31,6 +31,7 @@ export const env = {
   SMTP_PORT: parseInt(process.env.SMTP_PORT || '587', 10),
   SMTP_USER: process.env.SMTP_USER || '',
   SMTP_PASS: process.env.SMTP_PASS || '',
+  SMTP_FROM: process.env.SMTP_FROM || process.env.SMTP_USER || '',
   OTP_EXPIRY_MINUTES: otpExpiryMinutes,
   ADMIN_EMAIL: process.env.ADMIN_EMAIL || 'admin@college.edu',
   ADMIN_PASSWORD: adminPassword,
