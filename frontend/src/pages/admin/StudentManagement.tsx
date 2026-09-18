@@ -54,6 +54,7 @@ export function StudentManagement(): JSX.Element {
   const [appliedName, setAppliedName] = useState('');
   const [studentType, setStudentType] = useState('');
   const [department, setDepartment] = useState('');
+  const [appliedDepartment, setAppliedDepartment] = useState('');
   const [page, setPage] = useState(1);
 
   const [createOpen, setCreateOpen] = useState(() => searchParams.get('create') === '1');
@@ -80,16 +81,24 @@ export function StudentManagement(): JSX.Element {
     return () => clearTimeout(timer);
   }, [name]);
 
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setAppliedDepartment(department);
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [department]);
+
   const { data, loading, error, refetch } = useApi(
     () =>
       adminApi.listStudents({
         search: appliedName || undefined,
         studentType: studentType || undefined,
-        department: department || undefined,
+        department: appliedDepartment || undefined,
         page,
         limit: 10,
       }),
-    [appliedName, studentType, department, page]
+    [appliedName, studentType, appliedDepartment, page]
   );
 
   if (user?.role !== 'admin') return <Navigate to="/" replace />;
@@ -104,6 +113,7 @@ export function StudentManagement(): JSX.Element {
     setAppliedName('');
     setStudentType('');
     setDepartment('');
+    setAppliedDepartment('');
     setPage(1);
   };
 

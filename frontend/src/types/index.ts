@@ -409,3 +409,21 @@ export interface DeadlineFields {
   semester?: string;
   student?: string;
 }
+
+export type BulkImportType = 'students' | 'faculty' | 'events';
+
+export interface BulkImportRow {
+  row: number;
+  status: 'success' | 'error';
+  email?: string;
+  name?: string;
+  error?: string;
+}
+
+export interface BulkImportReport {
+  type: BulkImportType;
+  total: number;
+  succeeded: number;
+  failed: number;
+  rows: BulkImportRow[];
+}

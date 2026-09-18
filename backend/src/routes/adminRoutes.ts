@@ -25,6 +25,7 @@ import {
   globalSearch,
   updateMilestone,
 } from '../controllers/adminController';
+import { downloadTemplate, bulkImport, upload } from '../controllers/bulkImportController';
 import { authenticate, authorize } from '../middleware/auth';
 import { UserRole } from '../types';
 
@@ -63,6 +64,9 @@ router.delete('/forms/:id', deleteForm);
 
 router.get('/deadlines', listDeadlines);
 router.post('/deadlines', createDeadline);
+
+router.get('/bulk-import/template/:type', downloadTemplate);
+router.post('/bulk-import/:type', upload.single('file'), bulkImport);
 
 router.get('/search', globalSearch);
 

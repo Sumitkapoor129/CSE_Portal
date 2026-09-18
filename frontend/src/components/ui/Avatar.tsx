@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { JSX } from 'react';
 import { cn } from '../../utils/cn';
 
@@ -19,11 +20,13 @@ function initials(name: string): string {
 }
 
 export function Avatar({ name, photo, size = 'md', className }: AvatarProps): JSX.Element {
-  if (photo) {
+  const [failed, setFailed] = useState(false);
+  if (photo && !failed) {
     return (
       <img
         src={photo}
         alt=""
+        onError={() => setFailed(true)}
         className={cn('shrink-0 rounded-full object-cover', SIZES[size], className)}
       />
     );

@@ -17,6 +17,7 @@ export function formatDateTime(value: string | Date | null | undefined): string 
 export function daysUntil(value: string | Date | null | undefined): number | null {
   if (!value) return null;
   const target = new Date(value);
+  if (Number.isNaN(target.getTime())) return null;
   target.setHours(0, 0, 0, 0);
   const now = new Date().setHours(0, 0, 0, 0);
   return Math.ceil((target.getTime() - now) / 86400000);

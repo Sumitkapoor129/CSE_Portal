@@ -17,6 +17,8 @@ const documentSchema = new Schema<any>(
   { timestamps: true }
 );
 
+documentSchema.index({ student: 1, uploadDate: -1 });
+
 export const DocumentModel = mongoose.model<IDocumentModelDocument>(
   'Document',
   documentSchema

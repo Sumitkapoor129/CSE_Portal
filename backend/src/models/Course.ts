@@ -15,5 +15,7 @@ const courseSchema = new Schema<any>(
   { timestamps: true }
 );
 
+courseSchema.index({ semester: 1 });
+
 export const Course = mongoose.model<ICourseDocument>('Course', courseSchema);
 

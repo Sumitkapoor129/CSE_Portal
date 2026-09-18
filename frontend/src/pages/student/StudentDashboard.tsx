@@ -74,7 +74,7 @@ export function StudentDashboard(): JSX.Element {
               value={
                 <>
                   {completedCount(data.milestones)}{' '}
-                  <span className="text-sm font-normal text-gray-500">/ 11</span>
+                  <span className="text-sm font-normal text-gray-500">/ {data.milestones.length || 11}</span>
                 </>
               }
               sub="milestones completed"
@@ -125,14 +125,14 @@ export function StudentDashboard(): JSX.Element {
               aria-label="Milestones progress"
               aria-valuemin={0}
               aria-valuemax={100}
-              aria-valuenow={Math.min(100, Math.round((completedCount(data.milestones) / 11) * 100))}
+              aria-valuenow={Math.min(100, Math.round((completedCount(data.milestones) / (data.milestones.length || 11)) * 100))}
             >
               <div
                 className="h-2 rounded bg-blue-600"
-                style={{ width: `${Math.min(100, Math.round((completedCount(data.milestones) / 11) * 100))}%` }}
+                style={{ width: `${Math.min(100, Math.round((completedCount(data.milestones) / (data.milestones.length || 11)) * 100))}%` }}
               />
             </div>
-            <p className="mt-2 text-xs text-gray-500">{completedCount(data.milestones)} of 11 milestones completed</p>
+            <p className="mt-2 text-xs text-gray-500">{completedCount(data.milestones)} of {data.milestones.length || 11} milestones completed</p>
           </Card>
 
           <div className="grid gap-6 lg:grid-cols-2">

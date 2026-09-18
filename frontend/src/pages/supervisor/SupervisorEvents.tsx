@@ -250,7 +250,7 @@ export function SupervisorEvents(): JSX.Element {
               department: option.department,
             }))}
             selected={selected}
-            loading={options.length === 0}
+            loading={options.length === 0 && !optionsError}
             onToggle={toggleParticipant}
           />
           <div className="flex flex-col gap-3 border-t border-gray-100 pt-4 sm:flex-row sm:items-center sm:justify-between">

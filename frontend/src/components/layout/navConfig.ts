@@ -28,6 +28,7 @@ export const NAV_ITEMS: Record<UserRole, NavItem[]> = {
     { to: '/admin', label: 'Dashboard' },
     { to: '/admin/students', label: 'Students' },
     { to: '/admin/faculty', label: 'Faculty' },
+    { to: '/admin/bulk-import', label: 'Bulk Import' },
     { to: '/admin/assignments', label: 'Assignments' },
     { to: '/admin/src-committees', label: 'SRC Committees' },
     { to: '/admin/forms', label: 'Forms' },

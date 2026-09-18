@@ -17,6 +17,9 @@ const DEADLINE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000; // every 6 hours
 
 const app = express();
 
+// Trust one proxy hop so rate limiting keys on real client IPs behind a reverse proxy.
+app.set('trust proxy', 1);
+
 app.use(helmet());
 app.use(cors({ origin: env.CORS_ORIGINS ? env.CORS_ORIGINS.split(',').map(s => s.trim()) : true, credentials: true }));
 app.use(express.json({ limit: '10mb' }));
@@ -28,6 +31,15 @@ const limiter = rateLimit({
   message: { message: 'Too many requests, please try again later' },
 });
 app.use('/api', limiter);
+
+// Stricter tier for the brute-forceable auth surface (OTP verify, login, register, refresh).
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  message: { message: 'Too many auth attempts, please try again later' },
+});
+app.use('/api/auth', authLimiter);
 
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });

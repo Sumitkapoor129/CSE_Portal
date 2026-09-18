@@ -10,12 +10,13 @@ interface Column {
 interface TableProps {
   columns: Column[];
   children: ReactNode;
+  ariaLabel?: string;
 }
 
-export function Table({ columns, children }: TableProps) {
+export function Table({ columns, children, ariaLabel }: TableProps) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-left text-sm">
+      <table className="w-full text-left text-sm" aria-label={ariaLabel}>
         <thead>
           <tr>
             {columns.map((column) => (

@@ -81,7 +81,7 @@ export const getDashboard = asyncHandler(async (req: AuthRequest, res: Response)
 export const getAssignedStudents = asyncHandler(async (req: AuthRequest, res: Response) => {
   const facultyProfile = await getFacultyProfile(req.user!.id);
 
-  const { name, rollNumber, semester, studentType, researchArea, page = '1', limit = '20' } = req.query;
+  const { name, rollNumber, studentType, researchArea, page = '1', limit = '20' } = req.query;
 
   const supervisorRecords = await Supervisor.find({
     supervisor: facultyProfile._id,
@@ -119,14 +119,7 @@ export const getAssignedStudents = asyncHandler(async (req: AuthRequest, res: Re
     filter.user = { $in: matchedUserIds };
   }
 
-  let studentProfiles = StudentProfile.find(filter).populate('user', 'name email');
-
-  if (semester) {
-    studentProfiles = studentProfiles.populate({
-      path: 'semesters',
-      match: { semesterNumber: Number(semester) },
-    });
-  }
+  const studentProfiles = StudentProfile.find(filter).populate('user', 'name email');
 
   const pageNum = Math.max(1, Number(page));
   const limitNum = Math.min(100, Math.max(1, Number(limit)));

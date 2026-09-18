@@ -25,4 +25,7 @@ describe('daysUntil', () => {
   it('returns null for null input', () => {
     expect(daysUntil(null)).toBeNull();
   });
+  it('returns null for unparseable input', () => {
+    expect(daysUntil('not-a-date')).toBeNull();
+  });
 });

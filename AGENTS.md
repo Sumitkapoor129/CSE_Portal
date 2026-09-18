@@ -1,5 +1,26 @@
 # AGENTS.md
 
+# Project Instructions
+
+## Codebase Context
+
+This project has a Graphify-generated codebase context/graph.
+
+Before making substantial changes:
+- Consult the Graphify-generated context.
+- Use it to understand relationships between modules, dependencies, APIs, and relevant files.
+- Do not assume an isolated file represents the complete architecture.
+- When modifying a module, check its related dependencies and consumers.
+
+## Project Structure
+
+- `client/` — frontend
+- `server/` — backend
+
+## Important
+
+The Graphify files are supporting context, not source code. Do not modify or delete them unless explicitly required.
+
 ## Mission
 
 Build production-ready software using a **subagent-driven workflow**.

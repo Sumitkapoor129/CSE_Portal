@@ -56,6 +56,7 @@ export function EventManagement(): JSX.Element {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const [options, setOptions] = useState<StudentProfileView[]>([]);
+  const [optionsLoading, setOptionsLoading] = useState(false);
   const [optionsError, setOptionsError] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
 
@@ -85,10 +86,17 @@ export function EventManagement(): JSX.Element {
   const loadOptions = () => {
     setOptions([]);
     setOptionsError(false);
+    setOptionsLoading(true);
     adminApi
       .listStudents({ limit: 100 })
-      .then((result) => setOptions(result.students))
-      .catch(() => setOptionsError(true));
+      .then((result) => {
+        setOptions(result.students);
+        setOptionsLoading(false);
+      })
+      .catch(() => {
+        setOptionsError(true);
+        setOptionsLoading(false);
+      });
   };
 
   const resetForm = () => {
@@ -138,6 +146,10 @@ export function EventManagement(): JSX.Element {
     if (submitting) return;
     if (!form.title.trim() || !form.date || !form.startTime || !form.endTime) {
       setFormError('Title, date, start time, and end time are required.');
+      return;
+    }
+    if (optionsError) {
+      setFormError('Unable to load student options. Please retry before saving participants.');
       return;
     }
     const payload = {
@@ -340,7 +352,7 @@ export function EventManagement(): JSX.Element {
               department: student.department,
             }))}
             selected={selected}
-            loading={options.length === 0 && !optionsError}
+            loading={optionsLoading}
             onToggle={toggleParticipant}
           />
           <div className="flex flex-col gap-3 border-t border-gray-100 pt-4 sm:flex-row sm:items-center sm:justify-between">

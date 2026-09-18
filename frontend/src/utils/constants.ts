@@ -103,6 +103,12 @@ export const ACTIVE_STATUS_STYLE =
 export const INACTIVE_STATUS_STYLE =
   `${badge} bg-gray-50 text-gray-700 border-gray-200`;
 
+export const IMPORT_SUCCESS_STYLE =
+  `${badge} bg-green-50 text-green-700 border-green-200`;
+
+export const IMPORT_FAILURE_STYLE =
+  `${badge} bg-red-50 text-red-700 border-red-200`;
+
 export const THESIS_STATUS_STYLE: Record<ThesisStatus, string> = {
   draft: `${badge} bg-gray-50 text-gray-700 border-gray-200`,
   submitted: `${badge} bg-blue-50 text-blue-700 border-blue-200`,
