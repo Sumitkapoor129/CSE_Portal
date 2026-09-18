@@ -1,4 +1,4 @@
-import { apiFetch } from './client';
+import { apiFetch, apiUpload, apiDownload } from './client';
 import type {
   AdminCreateFaculty,
   AdminCreateStudent,
@@ -7,6 +7,7 @@ import type {
   AdminUpdateFaculty,
   AdminUpdateStudent,
   AuthUser,
+  BulkImportReport,
   Deadline,
   DeadlineFields,
   EventView,
@@ -63,4 +64,8 @@ export const adminApi = {
     apiFetch<Deadline>('/admin/deadlines', { method: 'POST', body: payload }),
   globalSearch: (q: string) =>
     apiFetch<{ students: unknown[]; faculty: unknown[] }>('/admin/search', { query: { q } }),
+  downloadBulkImportTemplate: (type: 'students' | 'faculty' | 'events') =>
+    apiDownload(`/admin/bulk-import/template/${type}`),
+  bulkImport: (type: 'students' | 'faculty' | 'events', file: File) =>
+    apiUpload<BulkImportReport>(`/admin/bulk-import/${type}`, file),
 };

@@ -35,18 +35,28 @@ export function StudentList(): JSX.Element {
     return () => clearTimeout(timer);
   }, [name]);
 
+  const [appliedSecondary, setAppliedSecondary] = useState({ rollNumber: '', semester: '', researchArea: '' });
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setAppliedSecondary({ rollNumber, semester, researchArea });
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [rollNumber, semester, researchArea]);
+
   const { data, loading, error, refetch } = useApi(
     () =>
       supervisorApi.getStudents({
         name: appliedName || undefined,
-        rollNumber: rollNumber || undefined,
-        semester: semester || undefined,
+        rollNumber: appliedSecondary.rollNumber || undefined,
+        semester: appliedSecondary.semester || undefined,
         studentType: studentType || undefined,
-        researchArea: researchArea || undefined,
+        researchArea: appliedSecondary.researchArea || undefined,
         page,
         limit: 20,
       }),
-    [appliedName, rollNumber, semester, studentType, researchArea, page]
+    [appliedName, appliedSecondary, studentType, page]
   );
 
   const hasFilters = Boolean(name || rollNumber || semester || studentType || researchArea);
@@ -58,6 +68,7 @@ export function StudentList(): JSX.Element {
     setSemester('');
     setStudentType('');
     setResearchArea('');
+    setAppliedSecondary({ rollNumber: '', semester: '', researchArea: '' });
     setPage(1);
   };
 

@@ -14,6 +14,8 @@ const supervisorSchema = new Schema<any>(
   { timestamps: true }
 );
 
+supervisorSchema.index({ supervisor: 1, isActive: 1 });
+
 export const Supervisor = mongoose.model<ISupervisorDocument>(
   'Supervisor',
   supervisorSchema

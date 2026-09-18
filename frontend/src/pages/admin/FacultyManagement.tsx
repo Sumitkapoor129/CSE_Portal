@@ -48,6 +48,7 @@ export function FacultyManagement(): JSX.Element {
   const [search, setSearch] = useState('');
   const [appliedSearch, setAppliedSearch] = useState('');
   const [department, setDepartment] = useState('');
+  const [appliedDepartment, setAppliedDepartment] = useState('');
   const [page, setPage] = useState(1);
 
   const [createOpen, setCreateOpen] = useState(() => searchParams.get('create') === '1');
@@ -74,15 +75,23 @@ export function FacultyManagement(): JSX.Element {
     return () => clearTimeout(timer);
   }, [search]);
 
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setAppliedDepartment(department);
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [department]);
+
   const { data, loading, error, refetch } = useApi(
     () =>
       adminApi.listFaculty({
         search: appliedSearch || undefined,
-        department: department || undefined,
+        department: appliedDepartment || undefined,
         page,
         limit: 10,
       }),
-    [appliedSearch, department, page]
+    [appliedSearch, appliedDepartment, page]
   );
 
   if (user?.role !== 'admin') return <Navigate to="/" replace />;
@@ -96,6 +105,7 @@ export function FacultyManagement(): JSX.Element {
     setSearch('');
     setAppliedSearch('');
     setDepartment('');
+    setAppliedDepartment('');
     setPage(1);
   };
 

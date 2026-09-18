@@ -15,6 +15,11 @@ if (isProduction) {
   }
 }
 
+const otpExpiryMinutes = parseInt(process.env.OTP_EXPIRY_MINUTES || '10', 10);
+if (Number.isNaN(otpExpiryMinutes) || otpExpiryMinutes <= 0) {
+  throw new Error('OTP_EXPIRY_MINUTES must be a positive number');
+}
+
 export const env = {
   PORT: parseInt(process.env.PORT || '5000', 10),
   NODE_ENV: process.env.NODE_ENV || 'development',
@@ -26,7 +31,7 @@ export const env = {
   SMTP_PORT: parseInt(process.env.SMTP_PORT || '587', 10),
   SMTP_USER: process.env.SMTP_USER || '',
   SMTP_PASS: process.env.SMTP_PASS || '',
-  OTP_EXPIRY_MINUTES: parseInt(process.env.OTP_EXPIRY_MINUTES || '10', 10),
+  OTP_EXPIRY_MINUTES: otpExpiryMinutes,
   ADMIN_EMAIL: process.env.ADMIN_EMAIL || 'admin@college.edu',
   ADMIN_PASSWORD: adminPassword,
   ADMIN_NAME: process.env.ADMIN_NAME || 'System Administrator',

@@ -36,6 +36,7 @@ const FormManagement = lazy(() => import('./pages/admin/FormManagement'));
 const DeadlineManagement = lazy(() => import('./pages/admin/DeadlineManagement'));
 const EventManagement = lazy(() => import('./pages/admin/EventManagement'));
 const GlobalSearch = lazy(() => import('./pages/admin/GlobalSearch'));
+const BulkImport = lazy(() => import('./pages/admin/BulkImport'));
 
 const ROUTE_TITLES: Record<string, string> = {
   '/auth/login': 'Sign In',
@@ -59,6 +60,7 @@ const ROUTE_TITLES: Record<string, string> = {
   '/admin': 'Dashboard',
   '/admin/students': 'Student Management',
   '/admin/faculty': 'Faculty Management',
+  '/admin/bulk-import': 'Bulk Import',
   '/admin/assignments': 'Supervisor Assignments',
   '/admin/src-committees': 'SRC Committee',
   '/admin/forms': 'Form Builder',
@@ -133,6 +135,7 @@ export default function App() {
                     <Route path="forms" element={<FormManagement />} />
                     <Route path="deadlines" element={<DeadlineManagement />} />
                     <Route path="events" element={<EventManagement />} />
+                    <Route path="bulk-import" element={<BulkImport />} />
                     <Route path="search" element={<GlobalSearch />} />
                   </Route>
                 </Route>

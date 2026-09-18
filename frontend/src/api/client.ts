@@ -59,6 +59,9 @@ async function refreshAccessToken(): Promise<string | null> {
       });
       if (!res.ok) return null;
       const json = (await res.json()) as { success: boolean; data: { accessToken: string; refreshToken: string } };
+      // If the user logged out while this refresh was in flight, the stored
+      // refresh token has been cleared — do not write tokens back.
+      if (getStoredRefreshToken() !== refresh) return null;
       setStoredTokens(json.data.accessToken, json.data.refreshToken);
       return json.data.accessToken;
     } catch {
@@ -134,4 +137,80 @@ async function doFetch<T>(path: string, options: FetchOptions, canRefresh: boole
 
 export async function apiFetch<T>(path: string, options: FetchOptions = {}): Promise<T> {
   return doFetch(path, options, true);
+}
+
+// Parses the shared { success, data, message } envelope for non-JSON-transport
+// requests (multipart upload / binary download). Moved here so upload/download
+// and doFetch agree on error shape and 401 handling.
+function handleEnvelopeResponse(res: Response, json: unknown, onUnauthorized: boolean): void {
+  if (!res.ok) {
+    const message =
+      json && typeof json === 'object' && 'message' in json && typeof (json as { message?: unknown }).message === 'string'
+        ? (json as { message: string }).message
+        : `Request failed (${res.status}).`;
+    const fields =
+      json && typeof json === 'object' && 'fields' in json
+        ? (json as { fields?: Record<string, string> }).fields
+        : undefined;
+    if (res.status === 401 && onUnauthorized) {
+      clearStoredToken();
+      window.dispatchEvent(new CustomEvent('auth:unauthorized'));
+    }
+    throw new ApiError(message, res.status, fields);
+  }
+}
+
+export async function apiUpload<T>(path: string, file: File): Promise<T> {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const token = getStoredToken();
+  const headers: Record<string, string> = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const url = `${API_URL}${path}`;
+  let res: Response;
+  try {
+    res = await fetch(url, { method: 'POST', headers, body: formData });
+  } catch {
+    throw new ApiError('Unable to reach the server. Please try again.', 0);
+  }
+
+  let json: unknown = null;
+  try {
+    json = await res.json();
+  } catch {
+    json = null;
+  }
+
+  handleEnvelopeResponse(res, json, true);
+
+  const envelope = json as ApiEnvelope<T> | null;
+  return envelope?.data as T;
+}
+
+export async function apiDownload(path: string): Promise<Blob> {
+  const token = getStoredToken();
+  const headers: Record<string, string> = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const url = `${API_URL}${path}`;
+  let res: Response;
+  try {
+    res = await fetch(url, { headers });
+  } catch {
+    throw new ApiError('Unable to reach the server. Please try again.', 0);
+  }
+
+  if (!res.ok) {
+    let json: unknown = null;
+    try {
+      json = await res.json();
+    } catch {
+      json = null;
+    }
+    handleEnvelopeResponse(res, json, true);
+  }
+
+  return res.blob();
 }

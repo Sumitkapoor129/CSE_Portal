@@ -16,6 +16,9 @@ const approvalRequestSchema = new Schema<any>(
   { timestamps: true }
 );
 
+approvalRequestSchema.index({ requester: 1, status: 1 });
+approvalRequestSchema.index({ status: 1 });
+
 export const ApprovalRequest = mongoose.model<IApprovalRequestDocument>(
   'ApprovalRequest',
   approvalRequestSchema

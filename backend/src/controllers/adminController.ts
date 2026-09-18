@@ -430,19 +430,19 @@ export const assignSupervisor = asyncHandler(async (req: AuthRequest, res: Respo
     }
   }
 
-  const existing = await Supervisor.findOne({ student: studentId, isActive: true });
-  if (existing) {
-    existing.isActive = false;
-    await existing.save();
-  }
-
-  const supervisorRecord = await Supervisor.create({
-    student: studentId,
-    supervisor: supervisorId,
-    coSupervisor: coSupervisorId || undefined,
-    assignedDate: new Date(),
-    isActive: true,
-  });
+  // One active/live Supervisor row per student is guaranteed by the unique
+  // `student` index, so reassignment updates the existing row in place rather
+  // than creating a second row (which would fail with E11000).
+  const supervisorRecord = await Supervisor.findOneAndUpdate(
+    { student: studentId },
+    {
+      supervisor: supervisorId,
+      coSupervisor: coSupervisorId || undefined,
+      assignedDate: new Date(),
+      isActive: true,
+    },
+    { upsert: true, new: true }
+  );
 
   studentProfile.supervisor = supervisorId;
   if (coSupervisorId) {
@@ -869,7 +869,7 @@ export const globalSearch = asyncHandler(async (req: AuthRequest, res: Response)
   const safeQ = (q as string).slice(0, 100);
   const regex = new RegExp(escapeRegex(safeQ), 'i');
 
-  const [students, faculty] = await Promise.all([
+  const [students, faculty, studentUsers, facultyUsers] = await Promise.all([
     StudentProfile.find({
       $or: [{ collegeId: regex }, { rollNumber: regex }],
     })
@@ -882,21 +882,28 @@ export const globalSearch = asyncHandler(async (req: AuthRequest, res: Response)
       .populate('user', 'name email isActive')
       .limit(20)
       .lean(),
+    User.find({
+      role: UserRole.STUDENT,
+      name: regex,
+    }).select('_id name email isActive').limit(20).lean(),
+    User.find({
+      role: UserRole.SUPERVISOR,
+      name: regex,
+    }).select('_id name email isActive').limit(20).lean(),
   ]);
 
-  const studentUsers = await User.find({
-    role: UserRole.STUDENT,
-    name: regex,
-  }).select('_id name email isActive').limit(20).lean();
+  const userIdOf = (value: unknown): string => {
+    if (!value) return '';
+    if (typeof value === 'string') return value;
+    if (typeof value === 'object' && '_id' in (value as Record<string, unknown>)) {
+      return String((value as { _id: unknown })._id);
+    }
+    return '';
+  };
 
-  const facultyUsers = await User.find({
-    role: UserRole.SUPERVISOR,
-    name: regex,
-  }).select('_id name email isActive').limit(20).lean();
-
-  const studentIds = new Set(students.map((s) => s.user.toString()));
-  const matchedStudentsFromUser = studentUsers.filter((u) => !studentIds.has(u._id.toString()));
-  const matchedFacultyFromUser = facultyUsers.filter((u) => !faculty.some((f) => f.user.toString() === u._id.toString()));
+  const studentIds = new Set(students.map((s) => userIdOf(s.user)));
+  const matchedStudentsFromUser = studentUsers.filter((u) => !studentIds.has(String(u._id)));
+  const matchedFacultyFromUser = facultyUsers.filter((u) => !faculty.some((f) => userIdOf(f.user) === String(u._id)));
 
   res.status(200).json({
     success: true,

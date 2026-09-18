@@ -12,7 +12,7 @@ import { Event } from '../models/Event';
 import { Form } from '../models/Form';
 import { AppError, asyncHandler } from '../middleware/errorHandler';
 import { createAuditLog } from '../utils/audit';
-import { UserRole, AuthRequest, ApprovalStatus } from '../types';
+import { UserRole, AuthRequest, ApprovalStatus, ThesisStatus } from '../types';
 import { computeTotalCredits } from '../services/creditService';
 import { getMilestones } from '../services/milestoneService';
 
@@ -333,7 +333,6 @@ export const submitThesis = asyncHandler(async (req: AuthRequest, res: Response)
 
   const lastThesis = await Thesis.findOne({ student: profile._id }).sort({ version: -1 });
   const version = lastThesis ? lastThesis.version + 1 : 1;
-  const status = version > 1 ? lastThesis!.status : undefined;
 
   const thesis = await Thesis.create({
     student: profile._id,
@@ -341,7 +340,7 @@ export const submitThesis = asyncHandler(async (req: AuthRequest, res: Response)
     documentUrl,
     submissionDate: new Date(),
     version,
-    status,
+    status: ThesisStatus.SUBMITTED,
   });
 
   await createAuditLog({

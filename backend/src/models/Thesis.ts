@@ -18,5 +18,7 @@ const thesisSchema = new Schema<any>(
   { timestamps: true }
 );
 
+thesisSchema.index({ student: 1, version: -1 });
+
 export const Thesis = mongoose.model<IThesisDocument>('Thesis', thesisSchema);
 

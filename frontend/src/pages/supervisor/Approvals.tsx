@@ -116,7 +116,7 @@ export function Approvals(): JSX.Element {
                           <TableCell className="font-medium text-gray-900">{studentNameOf(courseRow.student)}</TableCell>
                           <TableCell className="text-gray-700">{course?.courseName ?? '—'}</TableCell>
                           <TableCell className="text-gray-700">{course?.courseCode ?? '—'}</TableCell>
-                          <TableCell className="text-gray-500">{formatDate((item as StudentCourse).approvedAt)}</TableCell>
+                          <TableCell className="text-gray-500">{formatDate((item as StudentCourse & { createdAt?: string }).createdAt)}</TableCell>
                           <TableCell>
                             <div className="flex gap-2">
                               <Button size="sm" onClick={() => openDecision({ kind: 'course', id: item._id, studentName: studentNameOf(courseRow.student), title: course?.courseName ?? 'Course request' }, 'approved')}>
