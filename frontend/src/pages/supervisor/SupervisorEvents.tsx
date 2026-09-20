@@ -102,9 +102,10 @@ export function SupervisorEvents(): JSX.Element {
       setSuccessMessage('Event created successfully.');
       setPage(1);
       refetch();
-    } catch {
+    } catch (err: unknown) {
       setSubmitting(false);
-      setFormError('Unable to create the event. Please try again.');
+      const message = err instanceof Error ? err.message : (err as any)?.message;
+      setFormError(message || 'Unable to create the event. Please try again.');
     }
   };
 

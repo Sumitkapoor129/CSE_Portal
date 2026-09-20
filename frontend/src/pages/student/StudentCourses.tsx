@@ -216,7 +216,14 @@ export function StudentCourses(): JSX.Element {
                     <TableCell className="text-gray-700">{course.courseName}</TableCell>
                     <TableCell className="text-gray-700">{course.credits}</TableCell>
                     <TableCell>
-                      <Badge label={APPROVAL_STATUS_LABELS[course.status]} className={APPROVAL_STATUS_STYLE[course.status]} />
+                      <div className="flex flex-col gap-1 items-start">
+                        <Badge label={APPROVAL_STATUS_LABELS[course.status]} className={APPROVAL_STATUS_STYLE[course.status]} />
+                        {course.supervisorComment && (
+                          <span className="text-xs text-gray-500 italic">
+                            Remark: {course.supervisorComment}
+                          </span>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))

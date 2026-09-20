@@ -210,7 +210,7 @@ export function SrcCommitteeManagement(): JSX.Element {
                   </p>
                   <div className="pt-1">
                     <Link
-                      to="/admin/supervisors"
+                      to="/admin/assignments"
                       className="inline-flex items-center text-xs font-semibold text-amber-900 underline hover:text-amber-800"
                     >
                       Go to Supervisor Assignment &rarr;
@@ -305,4 +305,4 @@ export function SrcCommitteeManagement(): JSX.Element {
   );
 }
 
-export default SrcCommitteeManagement;
+export default SrcCommitteeManagement;

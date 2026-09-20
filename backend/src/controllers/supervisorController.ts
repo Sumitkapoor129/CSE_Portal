@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import { Request, Response } from 'express';
 import { Supervisor } from '../models/Supervisor';
 import { StudentProfile } from '../models/StudentProfile';
@@ -17,10 +18,10 @@ import { authenticate, authorize } from '../middleware/auth';
 import { AppError, asyncHandler } from '../middleware/errorHandler';
 import { createAuditLog } from '../utils/audit';
 import { createNotification, createBulkNotifications } from '../utils/notify';
-import { resolveParticipants, getEligibleStudentOptions, getAssignedStudentUserIds } from '../utils/participants';
+import { resolveParticipants, getEligibleStudentOptions, getAssignedStudentUserIds, parseEventDateTime } from '../utils/participants';
 import { updateMilestone as updateMilestoneService } from '../services/milestoneService';
 import { sendNotificationEmail } from '../utils/email';
-import { computeTotalCredits } from '../services/creditService';
+import { computeTotalCredits, computeCreditsForSemester } from '../services/creditService';
 import { UserRole, AuthRequest, ApprovalStatus, ThesisStatus } from '../types';
 import { escapeRegex } from '../utils/query';
 
@@ -32,15 +33,29 @@ const getFacultyProfile = async (userId: string) => {
   return profile;
 };
 
+const getAssignedStudentProfileIds = async (facultyProfileId: any): Promise<any[]> => {
+  const supervisorRecords = await Supervisor.find({
+    $or: [{ supervisor: facultyProfileId }, { coSupervisor: facultyProfileId }],
+    isActive: true,
+  }).select('student').lean();
+
+  const recordStudentIds = supervisorRecords.map((s) => s.student);
+
+  const directProfiles = await StudentProfile.find({
+    $or: [
+      { _id: { $in: recordStudentIds } },
+      { supervisor: facultyProfileId },
+      { coSupervisor: facultyProfileId },
+    ],
+  }).select('_id').lean();
+
+  return directProfiles.map((p) => p._id);
+};
+
 export const getDashboard = asyncHandler(async (req: AuthRequest, res: Response) => {
   const facultyProfile = await getFacultyProfile(req.user!.id);
 
-  const supervisorRecords = await Supervisor.find({
-    supervisor: facultyProfile._id,
-    isActive: true,
-  });
-  const assignedStudentIds = supervisorRecords.map((s) => s.student);
-
+  const assignedStudentIds = await getAssignedStudentProfileIds(facultyProfile._id);
   const assignedStudents = assignedStudentIds.length;
 
   const [pendingCourseApprovals, pendingThesisApprovals, pendingGeneralApprovals, upcomingEvents] = await Promise.all([
@@ -83,11 +98,7 @@ export const getAssignedStudents = asyncHandler(async (req: AuthRequest, res: Re
 
   const { name, rollNumber, studentType, researchArea, page = '1', limit = '20' } = req.query;
 
-  const supervisorRecords = await Supervisor.find({
-    supervisor: facultyProfile._id,
-    isActive: true,
-  });
-  const assignedStudentIds = supervisorRecords.map((s) => s.student);
+  const assignedStudentIds = await getAssignedStudentProfileIds(facultyProfile._id);
 
   if (assignedStudentIds.length === 0) {
     return res.status(200).json({
@@ -254,18 +265,32 @@ export const approveCourse = asyncHandler(async (req: AuthRequest, res: Response
     throw new AppError('Status must be approved or rejected', 400);
   }
 
-  const studentCourse = await StudentCourse.findById(studentCourseId).populate('student');
+  const studentCourse = await StudentCourse.findById(studentCourseId);
   if (!studentCourse) {
     throw new AppError('Course request not found', 404);
   }
 
-  const supervisorRecord = await Supervisor.findOne({
-    student: studentCourse.student,
-    supervisor: facultyProfile._id,
+  const studentProfileId = (studentCourse.student as any)?._id || studentCourse.student;
+
+  const activeAssignment = await Supervisor.findOne({
+    student: studentProfileId,
+    $or: [{ supervisor: facultyProfile._id }, { coSupervisor: facultyProfile._id }],
     isActive: true,
   });
 
-  if (!supervisorRecord) {
+  let isAssigned = Boolean(activeAssignment);
+  if (!isAssigned) {
+    const studentProf = await StudentProfile.findById(studentProfileId);
+    if (
+      studentProf &&
+      (studentProf.supervisor?.toString() === facultyProfile._id.toString() ||
+        studentProf.coSupervisor?.toString() === facultyProfile._id.toString())
+    ) {
+      isAssigned = true;
+    }
+  }
+
+  if (!isAssigned) {
     throw new AppError('This student is not assigned to you', 403);
   }
 
@@ -281,6 +306,13 @@ export const approveCourse = asyncHandler(async (req: AuthRequest, res: Response
   studentCourse.approvedAt = new Date();
   await studentCourse.save();
 
+  // Keep Course collection status synchronized with StudentCourse
+  if (studentCourse.course) {
+    await Course.findByIdAndUpdate(studentCourse.course, {
+      status,
+    });
+  }
+
   await createAuditLog({
     user: req.user!.id,
     action: `course_${status.toLowerCase()}`,
@@ -290,14 +322,29 @@ export const approveCourse = asyncHandler(async (req: AuthRequest, res: Response
     newValue: { status, comment },
   });
 
-  const studentProfile = await StudentProfile.findById(studentCourse.student).populate('user', 'name');
-  const studentName = (studentProfile?.user as any)?.name || 'Student';
+  const studentProfile = await StudentProfile.findById(studentProfileId).populate('user', 'name');
   const course = await Course.findById(studentCourse.course);
 
+  // Recalculate semester credits and upsert Credits collection
+  try {
+    const semResult = await computeCreditsForSemester(
+      studentProfileId.toString(),
+      studentCourse.semester.toString(),
+      studentProfile?.requiredCredits ?? 12
+    );
+    await Credits.findOneAndUpdate(
+      { student: studentProfileId, semester: studentCourse.semester },
+      { earnedCredits: semResult.earned, requiredCredits: semResult.required },
+      { upsert: true, new: true }
+    );
+  } catch (err) {
+    // Non-blocking credit calculation logging
+  }
+
   await createNotification({
-    user: (studentProfile?.user as any)?._id.toString() || studentCourse.student.toString(),
+    user: (studentProfile?.user as any)?._id.toString() || studentProfileId.toString(),
     title: `Course ${status.charAt(0).toUpperCase() + status.slice(1)}`,
-    message: `Your course request for ${course?.courseName || 'a course'} has been ${status.toLowerCase()}.`,
+    message: `Your course request for ${course?.courseName || 'a course'} has been ${status.toLowerCase()}.${comment ? ` Remark: ${comment}` : ''}`,
     type: 'course_approval',
     link: `/student/courses`,
   });
@@ -451,6 +498,14 @@ export const createEvent = asyncHandler(async (req: AuthRequest, res: Response) 
     throw new AppError('Title, event type, date, start time, and end time are required', 400);
   }
 
+  const eventDate = new Date(date);
+  if (isNaN(eventDate.getTime())) {
+    throw new AppError('Invalid event date', 400);
+  }
+
+  const parsedStartTime = parseEventDateTime(eventDate, startTime);
+  const parsedEndTime = parseEventDateTime(eventDate, endTime);
+
   const { userIds, participantDocs } = await resolveParticipants(Array.isArray(participants) ? participants : []);
 
   if (userIds.length > 0) {
@@ -461,20 +516,42 @@ export const createEvent = asyncHandler(async (req: AuthRequest, res: Response) 
     }
   }
 
+  // Handle semester ObjectId ref safely without throwing CastError
+  let semesterRef: any = undefined;
+  const rules = typeof eligibilityRules === 'object' && eligibilityRules !== null ? { ...eligibilityRules } : {};
+  if (semester) {
+    if (mongoose.isValidObjectId(semester)) {
+      semesterRef = semester;
+    } else {
+      const semNum = Number(semester);
+      if (!isNaN(semNum)) {
+        rules.semesterNumber = semNum;
+      }
+    }
+  }
+
+  let eventDeadline: Date | undefined = undefined;
+  if (deadline) {
+    const parsedDl = new Date(deadline);
+    if (!isNaN(parsedDl.getTime())) {
+      eventDeadline = parsedDl;
+    }
+  }
+
   const event = await Event.create({
     title,
     eventType,
-    description,
-    date,
-    startTime,
-    endTime,
-    location,
+    description: description || '',
+    date: eventDate,
+    startTime: parsedStartTime,
+    endTime: parsedEndTime,
+    location: location || '',
     organizer: req.user!.id,
     organizerModel: 'User',
     participants: participantDocs,
-    semester,
-    deadline,
-    eligibilityRules,
+    semester: semesterRef,
+    deadline: eventDeadline,
+    eligibilityRules: Object.keys(rules).length > 0 ? rules : undefined,
   });
 
   await createAuditLog({
@@ -482,11 +559,11 @@ export const createEvent = asyncHandler(async (req: AuthRequest, res: Response) 
     action: 'event_created',
     entity: 'Event',
     entityId: event._id.toString(),
-    newValue: { title, eventType, date },
+    newValue: { title, eventType, date: eventDate },
   });
 
   if (userIds.length > 0) {
-    const eventMessage = `You have been invited to "${title}" on ${new Date(date).toLocaleDateString()}.`;
+    const eventMessage = `You have been invited to "${title}" on ${eventDate.toLocaleDateString()}.`;
     await createBulkNotifications(userIds, { title: 'New Event: ' + title, message: eventMessage, type: 'event_invitation', link: '/student/events' });
 
     const participantUsers = await User.find({ _id: { $in: userIds } }).select('email').lean();
