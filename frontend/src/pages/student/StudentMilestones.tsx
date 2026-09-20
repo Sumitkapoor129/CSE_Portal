@@ -102,7 +102,11 @@ function MilestoneChecklist({ milestones }: { milestones: Milestone[] }): JSX.El
 }
 
 function DegreeTimeline({ timeline }: { timeline: TimelineItem[] }): JSX.Element {
-  if (timeline.length === 0) {
+  const visibleTimeline = timeline.filter(
+    (item) => item.type !== 'course' || item.status !== 'rejected'
+  );
+
+  if (visibleTimeline.length === 0) {
     return (
       <Card padded={false}>
         <EmptyState title="No timeline entries yet" message="Add semesters to start your degree timeline." />
@@ -113,7 +117,7 @@ function DegreeTimeline({ timeline }: { timeline: TimelineItem[] }): JSX.Element
   return (
     <Card padded={false}>
       <ul className="divide-y divide-gray-100">
-        {timeline.map((item, index) => (
+        {visibleTimeline.map((item, index) => (
           <li key={index} className="px-6 py-4">
             {item.type === 'semester' ? (
               <div>

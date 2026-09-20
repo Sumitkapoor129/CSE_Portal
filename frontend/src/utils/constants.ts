@@ -24,6 +24,7 @@ export const MILESTONE_STATUS_LABELS: Record<MilestoneStatus, string> = {
   pending: 'Pending',
   in_progress: 'In Progress',
   completed: 'Completed',
+  rejected: 'Rejected',
   skipped: 'Skipped',
 };
 
@@ -97,6 +98,7 @@ export const MILESTONE_STATUS_STYLE: Record<MilestoneStatus, string> = {
   pending: `${badge} bg-gray-50 text-gray-700 border-gray-200`,
   in_progress: `${badge} bg-blue-50 text-blue-700 border-blue-200`,
   completed: `${badge} bg-green-50 text-green-700 border-green-200`,
+  rejected: `${badge} bg-red-50 text-red-700 border-red-200`,
   skipped: `${badge} bg-amber-50 text-amber-700 border-amber-200`,
 };
 

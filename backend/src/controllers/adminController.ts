@@ -15,7 +15,7 @@ import { createNotification, createBulkNotifications } from '../utils/notify';
 import { UserRole, AuthRequest, ApprovalStatus, SRCMemberRole } from '../types';
 import { paginate } from '../utils/pagination';
 import { Milestone } from '../models/Milestone';
-import { seedMilestones, updateMilestone as updateMilestoneService } from '../services/milestoneService';
+import { seedMilestones, getMilestones, updateMilestone as updateMilestoneService } from '../services/milestoneService';
 import { resolveParticipants, parseEventDateTime } from '../utils/participants';
 import { sendNotificationEmail } from '../utils/email';
 import { escapeRegex } from '../utils/query';
@@ -959,6 +959,23 @@ export const createDeadline = asyncHandler(async (req: AuthRequest, res: Respons
 
 // ─── Milestone Management ─────────────────────────────────────────────────────
 
+export const getStudentMilestones = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { id } = req.params;
+
+  let studentProfile = await StudentProfile.findById(id);
+  if (!studentProfile) {
+    studentProfile = await StudentProfile.findOne({ user: id });
+  }
+  if (!studentProfile) {
+    throw new AppError('Student profile not found', 404);
+  }
+
+  await seedMilestones(studentProfile._id.toString());
+  const milestones = await getMilestones(studentProfile._id.toString());
+
+  res.status(200).json({ success: true, data: milestones });
+});
+
 export const updateMilestone = asyncHandler(async (req: AuthRequest, res: Response) => {
   const { id } = req.params;
   const { status, dueDate, title, description } = req.body;
@@ -970,7 +987,7 @@ export const updateMilestone = asyncHandler(async (req: AuthRequest, res: Respon
 
   const studentProfile = await StudentProfile.findById(milestone.student);
   if (!studentProfile) {
-    throw new AppError('Milestone not found', 404);
+    throw new AppError('Student profile not found', 404);
   }
 
   const updated = await updateMilestoneService(id, req.user!.id, { status, dueDate, title, description });
@@ -983,6 +1000,19 @@ export const updateMilestone = asyncHandler(async (req: AuthRequest, res: Respon
     previousValue: milestone.toObject() as unknown as Record<string, unknown>,
     newValue: { status, dueDate, title, description } as Record<string, unknown>,
   });
+
+  const studentUser = studentProfile.user ? studentProfile.user.toString() : '';
+  if (studentUser) {
+    const statusLabel =
+      status === 'completed' ? 'Approved' : status === 'rejected' ? 'Rejected' : status || 'Updated';
+    await createNotification({
+      user: studentUser,
+      title: `Milestone ${statusLabel}: ${milestone.title}`,
+      message: `Your milestone "${milestone.title}" has been updated to ${statusLabel.toLowerCase()} by the administrator.`,
+      type: 'milestone',
+      link: '/student/milestones',
+    });
+  }
 
   res.status(200).json({ success: true, data: updated });
 });

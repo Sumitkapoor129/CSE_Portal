@@ -15,6 +15,8 @@ import type {
   FacultyView,
   Form,
   FormFields,
+  Milestone,
+  MilestoneStatus,
   Pagination,
   SRCMemberRole,
   SRCCommittee,
@@ -46,6 +48,12 @@ export const adminApi = {
     apiFetch<SRCCommittee>('/admin/src-committee', { method: 'POST', body: payload }),
   updateSRCCommittee: (id: string, members: { faculty: string; role: SRCMemberRole }[]) =>
     apiFetch<SRCCommittee>(`/admin/src-committee/${id}`, { method: 'PUT', body: { members } }),
+  getStudentMilestones: (studentId: string, opts?: ApiOpts) =>
+    apiFetch<Milestone[]>(`/admin/students/${studentId}/milestones`, { signal: opts?.signal }),
+  updateMilestone: (
+    id: string,
+    payload: { status?: MilestoneStatus; dueDate?: string; title?: string; description?: string }
+  ) => apiFetch<Milestone>(`/admin/milestones/${id}`, { method: 'PUT', body: payload }),
   listEvents: (params: { page?: number; limit?: number } = {}, opts?: ApiOpts) =>
     apiFetch<{ events: EventView[]; pagination: Pagination }>('/admin/events', { query: params, signal: opts?.signal }),
   createEvent: (payload: AdminEventPayload) =>
