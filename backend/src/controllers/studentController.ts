@@ -14,11 +14,15 @@ import { Supervisor } from '../models/Supervisor';
 import { SRCCommittee } from '../models/SRCCommittee';
 import { User } from '../models/User';
 import { FacultyProfile } from '../models/FacultyProfile';
+import { Milestone } from '../models/Milestone';
+import { Internship } from '../models/Internship';
+import { ComprehensiveExam } from '../models/ComprehensiveExam';
 import { AppError, asyncHandler } from '../middleware/errorHandler';
 import { createAuditLog } from '../utils/audit';
-import { UserRole, AuthRequest, ApprovalStatus, ThesisStatus } from '../types';
+import { UserRole, AuthRequest, ApprovalStatus, ThesisStatus, MilestoneKey, MilestoneStatus, InternshipStatus } from '../types';
 import { computeTotalCredits } from '../services/creditService';
 import { getMilestones } from '../services/milestoneService';
+import { evaluateStudentTimeline } from '../services/ordinanceTimelineService';
 
 const resolveFacultyDoc = async (rawFaculty: any): Promise<any> => {
   if (!rawFaculty) return null;
@@ -707,6 +711,7 @@ export const getDashboard = asyncHandler(async (req: AuthRequest, res: Response)
   ]);
 
   const nextMilestone = milestones.find((m: any) => m.status !== 'completed') || null;
+  const timelineEvaluation = await evaluateStudentTimeline(profile._id.toString());
 
   res.status(200).json({
     success: true,
@@ -721,6 +726,10 @@ export const getDashboard = asyncHandler(async (req: AuthRequest, res: Response)
       pendingCourseRequests,
       thesis,
       unreadNotifications,
+      ordinanceAlerts: timelineEvaluation?.alerts || [],
+      validity: timelineEvaluation?.validity,
+      timelineDues: timelineEvaluation?.dues || [],
+      comprehensiveExam: timelineEvaluation?.comprehensiveExamSummary,
     },
   });
 });
@@ -820,3 +829,88 @@ export const getMyMilestones = asyncHandler(async (req: AuthRequest, res: Respon
 
   res.status(200).json({ success: true, data: milestones });
 });
+
+export const getMyInternships = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const profile = await StudentProfile.findOne({ user: req.user!.id });
+  if (!profile) {
+    throw new AppError('Student profile not found', 404);
+  }
+
+  const internships = await Internship.find({ student: profile._id }).sort({ createdAt: -1 }).lean();
+  res.status(200).json({ success: true, data: internships });
+});
+
+export const createInternshipRequest = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { organization, researchTopic, startDate, endDate } = req.body;
+
+  if (!organization || !researchTopic || !startDate || !endDate) {
+    throw new AppError('organization, researchTopic, startDate, and endDate are required', 400);
+  }
+
+  const profile = await StudentProfile.findOne({ user: req.user!.id });
+  if (!profile) {
+    throw new AppError('Student profile not found', 404);
+  }
+
+  // Ordinance Rule: "Internship eligibility: Only after topic registration"
+  const topicMilestone = await Milestone.findOne({
+    student: profile._id,
+    key: MilestoneKey.TOPIC_REGISTRATION,
+    status: MilestoneStatus.COMPLETED,
+  });
+
+  if (!topicMilestone) {
+    throw new AppError(
+      'Per PhD ordinance, scholars are eligible for internship / collaborative research only after successful Topic Registration.',
+      400
+    );
+  }
+
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  if (end <= start) {
+    throw new AppError('End date must be after start date', 400);
+  }
+
+  const durationMonths = Math.max(1, Math.round((end.getTime() - start.getTime()) / (30 * 86400000)));
+
+  // Ordinance Rule: "Internship / Collaborative research: Maximum 12 months; may extend to 18 months case-by-case"
+  if (durationMonths > 18) {
+    throw new AppError('Internship duration cannot exceed 18 months per PhD ordinance.', 400);
+  }
+
+  const internship = await Internship.create({
+    student: profile._id,
+    organization: organization.trim(),
+    researchTopic: researchTopic.trim(),
+    startDate: start,
+    endDate: end,
+    durationMonths,
+    status: InternshipStatus.PENDING,
+  });
+
+  await createAuditLog({
+    user: req.user!.id,
+    action: 'CREATE_INTERNSHIP_REQUEST',
+    entity: 'Internship',
+    entityId: internship._id.toString(),
+    newValue: { organization, researchTopic, durationMonths },
+  });
+
+  res.status(201).json({ success: true, data: internship });
+});
+
+export const getMyComprehensiveExams = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const profile = await StudentProfile.findOne({ user: req.user!.id });
+  if (!profile) {
+    throw new AppError('Student profile not found', 404);
+  }
+
+  const exams = await ComprehensiveExam.find({ student: profile._id })
+    .populate('conductedBy', 'name email')
+    .sort({ attemptNumber: 1 })
+    .lean();
+
+  res.status(200).json({ success: true, data: exams });
+});
+

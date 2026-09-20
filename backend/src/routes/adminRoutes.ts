@@ -25,6 +25,12 @@ import {
   globalSearch,
   getStudentMilestones,
   updateMilestone,
+  getDepartmentDues,
+  listExternalExaminers,
+  addExternalExaminer,
+  updateExternalExaminer,
+  listAllInternships,
+  adminReviewInternship,
 } from '../controllers/adminController';
 import { downloadTemplate, bulkImport, upload } from '../controllers/bulkImportController';
 import { authenticate, authorize } from '../middleware/auth';
@@ -35,6 +41,7 @@ const router = Router();
 router.use(authenticate as any, authorize(UserRole.ADMIN) as any);
 
 router.get('/dashboard', getDashboard);
+router.get('/dues', getDepartmentDues);
 
 router.post('/students', createStudent);
 router.get('/students', listStudents);
@@ -71,5 +78,12 @@ router.get('/bulk-import/template/:type', downloadTemplate);
 router.post('/bulk-import/:type', upload.single('file'), bulkImport);
 
 router.get('/search', globalSearch);
+
+router.get('/examiners', listExternalExaminers);
+router.post('/examiners', addExternalExaminer);
+router.put('/examiners/:id', updateExternalExaminer);
+
+router.get('/internships', listAllInternships);
+router.put('/internships/:id/review', adminReviewInternship);
 
 export default router;

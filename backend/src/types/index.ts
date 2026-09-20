@@ -59,6 +59,7 @@ export enum MilestoneKey {
   COMPREHENSIVE_EXAM = 'comprehensive_exam',
   TOPIC_REGISTRATION = 'topic_registration',
   ENHANCEMENT_SEMINAR = 'enhancement_seminar',
+  EXTENSION_SEMINAR = 'extension_seminar',
   PRE_SUBMISSION = 'pre_submission',
   THESIS_SUBMITTED = 'thesis_submitted',
   THESIS_APPROVED = 'thesis_approved',
@@ -284,3 +285,106 @@ export interface AuthRequest extends Request {
     email: string;
   };
 }
+
+export enum ComprehensiveExamResult {
+  SCHEDULED = 'scheduled',
+  PASSED = 'passed',
+  FAILED = 'failed',
+}
+
+export interface IComprehensiveExam {
+  student: string;
+  attemptNumber: number;
+  examDate: Date;
+  result: ComprehensiveExamResult;
+  retakeDeadline?: Date;
+  remarks?: string;
+  conductedBy?: string;
+  createdAt: Date;
+}
+
+export enum InternshipStatus {
+  PENDING = 'pending',
+  SUPERVISOR_APPROVED = 'supervisor_approved',
+  ADMIN_APPROVED = 'admin_approved',
+  REJECTED = 'rejected',
+  COMPLETED = 'completed',
+}
+
+export interface IInternship {
+  student: string;
+  organization: string;
+  researchTopic: string;
+  startDate: Date;
+  endDate: Date;
+  durationMonths: number;
+  status: InternshipStatus;
+  supervisorComment?: string;
+  adminComment?: string;
+  createdAt: Date;
+}
+
+export enum ExternalExaminerStatus {
+  INVITED = 'invited',
+  ACCEPTED = 'accepted',
+  DECLINED = 'declined',
+  REPORT_SUBMITTED = 'report_submitted',
+  OVERDUE_REPLACED = 'overdue_replaced',
+}
+
+export enum ExaminerCategory {
+  CATEGORY_I = 'I',
+  CATEGORY_II = 'II',
+  CATEGORY_III = 'III',
+}
+
+export interface IExternalExaminer {
+  thesis: string;
+  student: string;
+  examinerName: string;
+  examinerEmail: string;
+  institution: string;
+  invitationDate: Date;
+  responseDueDate: Date;
+  status: ExternalExaminerStatus;
+  category?: ExaminerCategory;
+  cat3ResponseDueDate?: Date;
+  reportUrl?: string;
+  remarks?: string;
+  createdAt: Date;
+}
+
+export type TimelineAlertSeverity = 'critical' | 'warning' | 'info';
+
+export interface ITimelineAlert {
+  code: string;
+  title: string;
+  message: string;
+  severity: TimelineAlertSeverity;
+  dueDate?: Date;
+  daysDiff?: number;
+  actionLink?: string;
+}
+
+export interface IRegistrationValidity {
+  admissionDate: Date;
+  expiryDate: Date;
+  isExpired: boolean;
+  daysRemaining: number;
+  status: 'valid' | 'expiring_soon' | 'expired';
+}
+
+export interface ScholarDueItem {
+  studentId: string;
+  studentName: string;
+  rollNumber: string;
+  collegeId: string;
+  department: string;
+  supervisorName?: string;
+  dueMilestone: string;
+  dueDate?: string;
+  daysDiff: number;
+  status: 'overdue' | 'due_soon';
+  action: string;
+}
+

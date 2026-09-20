@@ -12,27 +12,45 @@ import { ApprovalRequest } from '../models/ApprovalRequest';
 import { AppError, asyncHandler } from '../middleware/errorHandler';
 import { createAuditLog } from '../utils/audit';
 import { createNotification, createBulkNotifications } from '../utils/notify';
-import { UserRole, AuthRequest, ApprovalStatus, SRCMemberRole } from '../types';
-import { paginate } from '../utils/pagination';
 import { Milestone } from '../models/Milestone';
+import { ExternalExaminer } from '../models/ExternalExaminer';
+import { Internship } from '../models/Internship';
 import { seedMilestones, getMilestones, updateMilestone as updateMilestoneService } from '../services/milestoneService';
+import { getAdminDepartmentDues } from '../services/ordinanceTimelineService';
 import { resolveParticipants, parseEventDateTime } from '../utils/participants';
 import { sendNotificationEmail } from '../utils/email';
 import { escapeRegex } from '../utils/query';
+import { paginate } from '../utils/pagination';
+import {
+  UserRole,
+  AuthRequest,
+  ApprovalStatus,
+  SRCMemberRole,
+  ExternalExaminerStatus,
+  ExaminerCategory,
+  InternshipStatus,
+} from '../types';
 
 // ─── Dashboard ───────────────────────────────────────────────────────────────
 
 export const getDashboard = asyncHandler(async (req: AuthRequest, res: Response) => {
-  const [totalStudents, totalFaculty, totalEvents, pendingApprovals] = await Promise.all([
+  const [totalStudents, totalFaculty, totalEvents, pendingApprovals, departmentDues] = await Promise.all([
     User.countDocuments({ role: UserRole.STUDENT }),
     User.countDocuments({ role: UserRole.SUPERVISOR }),
     Event.countDocuments(),
     ApprovalRequest.countDocuments({ status: ApprovalStatus.PENDING }),
+    getAdminDepartmentDues(),
   ]);
 
   res.status(200).json({
     success: true,
-    data: { totalStudents, totalFaculty, totalEvents, pendingApprovals },
+    data: {
+      totalStudents,
+      totalFaculty,
+      totalEvents,
+      pendingApprovals,
+      departmentDues,
+    },
   });
 });
 
@@ -1073,4 +1091,150 @@ export const globalSearch = asyncHandler(async (req: AuthRequest, res: Response)
     },
   });
 });
+
+export const getDepartmentDues = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const duesData = await getAdminDepartmentDues();
+  res.status(200).json({ success: true, data: duesData });
+});
+
+export const listExternalExaminers = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { thesisId, studentId } = req.query;
+  const filter: Record<string, any> = {};
+  if (thesisId) filter.thesis = thesisId;
+  if (studentId) filter.student = studentId;
+
+  const examiners = await ExternalExaminer.find(filter)
+    .populate('student', 'rollNumber collegeId department user')
+    .populate({
+      path: 'student',
+      populate: { path: 'user', select: 'name email' },
+    })
+    .sort({ invitationDate: -1 })
+    .lean();
+
+  // Auto-flag any invited examiner overdue past 4 weeks (28 days)
+  const now = Date.now();
+  const enhanced = examiners.map((ex: any) => {
+    const isOverdue =
+      ex.status === ExternalExaminerStatus.INVITED &&
+      new Date(ex.responseDueDate).getTime() < now;
+    return {
+      ...ex,
+      isOverdue,
+      recommendedAction: isOverdue ? 'Replace examiner (4 weeks elapsed without response)' : 'Awaiting response',
+    };
+  });
+
+  res.status(200).json({ success: true, data: enhanced });
+});
+
+export const addExternalExaminer = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { thesisId, studentId, examinerName, examinerEmail, institution, invitationDate } = req.body;
+
+  if (!thesisId || !studentId || !examinerName || !examinerEmail || !institution) {
+    throw new AppError('thesisId, studentId, examinerName, examinerEmail, and institution are required', 400);
+  }
+
+  const invDate = invitationDate ? new Date(invitationDate) : new Date();
+  // Ordinance Rule: "Examiner response: If examiner does not respond, another examiner may be appointed after 4 weeks"
+  const responseDueDate = new Date(invDate.getTime() + 28 * 86400000);
+
+  const examiner = await ExternalExaminer.create({
+    thesis: thesisId,
+    student: studentId,
+    examinerName: examinerName.trim(),
+    examinerEmail: examinerEmail.toLowerCase().trim(),
+    institution: institution.trim(),
+    invitationDate: invDate,
+    responseDueDate,
+    status: ExternalExaminerStatus.INVITED,
+  });
+
+  await createAuditLog({
+    user: req.user!.id,
+    action: 'ADD_EXTERNAL_EXAMINER',
+    entity: 'ExternalExaminer',
+    entityId: examiner._id.toString(),
+    newValue: { examinerName, examinerEmail, institution, responseDueDate },
+  });
+
+  res.status(201).json({ success: true, data: examiner });
+});
+
+export const updateExternalExaminer = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { id } = req.params;
+  const { status, category, reportUrl, remarks } = req.body;
+
+  const examiner = await ExternalExaminer.findById(id);
+  if (!examiner) {
+    throw new AppError('External examiner record not found', 404);
+  }
+
+  if (status) examiner.status = status;
+  if (category) {
+    examiner.category = category;
+    // Ordinance Rule: "Category III re-evaluation: Examiner is requested to respond within 4 weeks"
+    if (category === ExaminerCategory.CATEGORY_III) {
+      examiner.cat3ResponseDueDate = new Date(Date.now() + 28 * 86400000);
+    }
+  }
+  if (reportUrl !== undefined) examiner.reportUrl = reportUrl;
+  if (remarks !== undefined) examiner.remarks = remarks;
+
+  await examiner.save();
+
+  await createAuditLog({
+    user: req.user!.id,
+    action: 'UPDATE_EXTERNAL_EXAMINER',
+    entity: 'ExternalExaminer',
+    entityId: examiner._id.toString(),
+    newValue: { status, category, remarks },
+  });
+
+  res.status(200).json({ success: true, data: examiner });
+});
+
+export const listAllInternships = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const internships = await Internship.find({})
+    .populate('student', 'rollNumber collegeId department user')
+    .populate({
+      path: 'student',
+      populate: { path: 'user', select: 'name email' },
+    })
+    .sort({ createdAt: -1 })
+    .lean();
+
+  res.status(200).json({ success: true, data: internships });
+});
+
+export const adminReviewInternship = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { id } = req.params;
+  const { status, adminComment } = req.body;
+
+  if (!status || ![InternshipStatus.ADMIN_APPROVED, InternshipStatus.REJECTED].includes(status)) {
+    throw new AppError('Status must be admin_approved or rejected', 400);
+  }
+
+  const internship = await Internship.findById(id);
+  if (!internship) {
+    throw new AppError('Internship record not found', 404);
+  }
+
+  internship.status = status;
+  if (adminComment) {
+    internship.adminComment = adminComment.trim();
+  }
+  await internship.save();
+
+  await createAuditLog({
+    user: req.user!.id,
+    action: 'ADMIN_REVIEW_INTERNSHIP',
+    entity: 'Internship',
+    entityId: internship._id.toString(),
+    newValue: { status, adminComment },
+  });
+
+  res.status(200).json({ success: true, data: internship });
+});
+
 

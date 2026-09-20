@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import type { JSX } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
@@ -21,11 +22,22 @@ import {
   MILESTONE_STATUS_STYLE,
   THESIS_STATUS_LABELS,
   THESIS_STATUS_STYLE,
+  TIMELINE_SEVERITY_STYLE,
 } from '../../utils/constants';
 
 export function StudentDashboard(): JSX.Element {
   const { user } = useAuth();
   const { data, loading, error, refetch } = useApi(studentApi.getDashboard);
+
+  const { completedMilestones, totalMilestones, milestonePercentage } = useMemo(() => {
+    const total = data?.milestones.length || 11;
+    const completed = data?.milestones.filter((m) => m.status === 'completed').length ?? 0;
+    return {
+      completedMilestones: completed,
+      totalMilestones: total,
+      milestonePercentage: Math.min(100, Math.round((completed / total) * 100)),
+    };
+  }, [data?.milestones]);
 
   if (user?.role !== 'student') return <Navigate to="/" replace />;
 
@@ -64,6 +76,58 @@ export function StudentDashboard(): JSX.Element {
           </Link>
         </div>
       )}
+
+      {/* 8-Year Registration Validity Status */}
+      {!loading && !error && data?.validity && (
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-2 rounded-md border border-gray-200 bg-white px-4 py-3 text-xs text-gray-600 shadow-sm">
+          <div className="flex items-center gap-2">
+            <span className="font-semibold text-gray-800">PhD Registration Validity:</span>
+            {data.validity.status === 'expired' ? (
+              <span className="rounded bg-red-100 px-2 py-0.5 font-medium text-red-800">Expired (Exceeded 8 Years)</span>
+            ) : data.validity.status === 'expiring_soon' ? (
+              <span className="rounded bg-amber-100 px-2 py-0.5 font-medium text-amber-800">Expiring Soon ({data.validity.daysRemaining} days left)</span>
+            ) : (
+              <span className="rounded bg-green-100 px-2 py-0.5 font-medium text-green-800">Active ({data.validity.daysRemaining} days remaining · 8-Yr Max)</span>
+            )}
+          </div>
+          <span>Enrolled: {formatDate(data.validity.admissionDate)} · Expiry: {formatDate(data.validity.expiryDate)}</span>
+        </div>
+      )}
+
+      {/* Ordinance Timeline Alerts & Dues */}
+      {!loading && !error && data?.ordinanceAlerts && data.ordinanceAlerts.length > 0 && (
+        <div className="mb-6 space-y-2">
+          {data.ordinanceAlerts.map((alert) => {
+            const style = TIMELINE_SEVERITY_STYLE[alert.severity] || TIMELINE_SEVERITY_STYLE.info;
+            return (
+              <div
+                key={alert.code}
+                className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded-md border px-4 py-3 ${style.border} ${style.bg} ${style.text}`}
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className={style.badge}>{alert.title}</span>
+                    {alert.dueDate && (
+                      <span className="text-xs opacity-75">Target: {formatDate(alert.dueDate)}</span>
+                    )}
+                  </div>
+                  <p className="mt-1 text-sm">{alert.message}</p>
+                </div>
+                {alert.actionLink && (
+                  <Link
+                    to={alert.actionLink}
+                    aria-label={`Take action: ${alert.title}`}
+                    className="shrink-0 text-xs font-semibold underline underline-offset-2 hover:opacity-80"
+                  >
+                    Take Action →
+                  </Link>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       {loading && (
         <div className="space-y-6">
           <SkeletonCards count={4} />
@@ -81,50 +145,73 @@ export function StudentDashboard(): JSX.Element {
                   {data.credits.earned} <span className="text-sm font-normal text-gray-500">/ {data.credits.required}</span>
                 </>
               }
-              sub={`${data.credits.remaining} credits remaining`}
+              sub={`${data.credits.required - data.credits.earned} credits remaining`}
+              to="/student/credits"
             />
             <StatCard
               label="Milestones"
               value={
                 <>
-                  {completedCount(data.milestones)}{' '}
-                  <span className="text-sm font-normal text-gray-500">/ {data.milestones.length || 11}</span>
+                  {completedMilestones} <span className="text-sm font-normal text-gray-500">/ {totalMilestones}</span>
                 </>
               }
-              sub="milestones completed"
+              sub="stages completed"
+              to="/student/milestones"
             />
-            <StatCard label="Upcoming Deadlines" value={data.upcomingDeadlines.length} sub="due soon" />
             <StatCard
-              label="Unread Notifications"
-              value={
-                <Link to="/student/notifications" aria-label="View all unread notifications" className="text-blue-600 hover:text-blue-700">
-                  {data.unreadNotifications}
-                </Link>
-              }
-              sub="need attention"
+              label="Thesis"
+              value={data.thesis ? THESIS_STATUS_LABELS[data.thesis.status] : 'Not submitted'}
+              sub={data.thesis ? `Version ${data.thesis.version}` : 'ready when you are'}
+              to="/student/thesis"
+            />
+            <StatCard
+              label="Notifications"
+              value={data.unreadNotifications}
+              sub={data.unreadNotifications === 1 ? 'unread update' : 'unread updates'}
+              to="/student/notifications"
             />
           </div>
 
-          <Card>
-            {data.nextMilestone ? (
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Next milestone</p>
-                  <p className="mt-1 text-lg font-semibold text-gray-900">{data.nextMilestone.title}</p>
-                  <p className="mt-1 text-sm text-gray-500">{data.nextMilestone.description}</p>
+          <div className="grid gap-6 lg:grid-cols-3">
+            <Card className="lg:col-span-2">
+              <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Current supervisor</p>
+              {data.profile.supervisor ? (
+                <div className="mt-2">
+                  <p className="text-lg font-medium text-gray-900">{formatFaculty(data.profile.supervisor)}</p>
+                  {data.profile.coSupervisor && (
+                    <p className="mt-1 text-sm text-gray-600">
+                      Co-supervisor: {formatFaculty(data.profile.coSupervisor)}
+                    </p>
+                  )}
+                  {data.profile.supervisor.department && (
+                    <p className="text-sm text-gray-500">{data.profile.supervisor.department}</p>
+                  )}
                 </div>
-                <Badge
-                  label={MILESTONE_STATUS_LABELS[data.nextMilestone.status]}
-                  className={MILESTONE_STATUS_STYLE[data.nextMilestone.status]}
-                />
-              </div>
-            ) : (
-              <div>
-                <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Next milestone</p>
-                <p className="mt-1 text-lg font-semibold text-gray-900">All milestones completed</p>
-              </div>
-            )}
-          </Card>
+              ) : (
+                <p className="mt-2 text-sm text-gray-500">Awaiting supervisor assignment.</p>
+              )}
+            </Card>
+
+            <Card>
+              <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Next milestone</p>
+              {data.nextMilestone ? (
+                <div className="mt-2">
+                  <p className="font-medium text-gray-900">{data.nextMilestone.title}</p>
+                  <div className="mt-1 flex items-center gap-2">
+                    <Badge
+                      label={MILESTONE_STATUS_LABELS[data.nextMilestone.status]}
+                      className={MILESTONE_STATUS_STYLE[data.nextMilestone.status]}
+                    />
+                    {data.nextMilestone.dueDate && (
+                      <span className="text-xs text-gray-500">Due {formatDate(data.nextMilestone.dueDate)}</span>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <p className="mt-2 text-sm text-gray-500">All milestones completed.</p>
+              )}
+            </Card>
+          </div>
 
           <Card>
             <div className="flex items-center justify-between">
@@ -139,14 +226,15 @@ export function StudentDashboard(): JSX.Element {
               aria-label="Milestones progress"
               aria-valuemin={0}
               aria-valuemax={100}
-              aria-valuenow={Math.min(100, Math.round((completedCount(data.milestones) / (data.milestones.length || 11)) * 100))}
+              aria-valuenow={milestonePercentage}
+              aria-valuetext={`${completedMilestones} of ${totalMilestones} milestones completed`}
             >
               <div
                 className="h-2 rounded bg-blue-600"
-                style={{ width: `${Math.min(100, Math.round((completedCount(data.milestones) / (data.milestones.length || 11)) * 100))}%` }}
+                style={{ width: `${milestonePercentage}%` }}
               />
             </div>
-            <p className="mt-2 text-xs text-gray-500">{completedCount(data.milestones)} of {data.milestones.length || 11} milestones completed</p>
+            <p className="mt-2 text-xs text-gray-500">{completedMilestones} of {totalMilestones} milestones completed</p>
           </Card>
 
           <div className="grid gap-6 lg:grid-cols-2">
@@ -155,6 +243,7 @@ export function StudentDashboard(): JSX.Element {
                 <EmptyState title="No upcoming deadlines" message="You are all caught up." />
               ) : (
                 <Table
+                  ariaLabel="Upcoming Deadlines"
                   columns={[
                     { key: 'title', header: 'Title' },
                     { key: 'due', header: 'Due date' },
@@ -196,6 +285,7 @@ export function StudentDashboard(): JSX.Element {
           {data.pendingCourseRequests.length > 0 && (
             <Card title="Pending Course Requests" padded={false}>
               <Table
+                ariaLabel="Pending Course Requests"
                 columns={[
                   { key: 'course', header: 'Course' },
                   { key: 'code', header: 'Code' },
@@ -241,10 +331,6 @@ export function StudentDashboard(): JSX.Element {
       )}
     </>
   );
-}
-
-function completedCount(milestones: { status: string }[]): number {
-  return milestones.filter((milestone) => milestone.status === 'completed').length;
 }
 
 export default StudentDashboard;

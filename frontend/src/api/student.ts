@@ -1,6 +1,7 @@
 import { apiFetch } from './client';
 import type { ApiOpts } from './client';
 import type {
+  ComprehensiveExam,
   Course,
   Credits,
   CreditsListResponse,
@@ -8,6 +9,7 @@ import type {
   DocumentView,
   EventView,
   Form,
+  Internship,
   Milestone,
   Notification,
   Semester,
@@ -46,4 +48,8 @@ export const studentApi = {
   getForms: (opts?: ApiOpts) => apiFetch<Form[]>('/student/forms', { signal: opts?.signal }),
   getNotifications: (opts?: ApiOpts) => apiFetch<Notification[]>('/student/notifications', { signal: opts?.signal }),
   markNotificationRead: (id: string) => apiFetch<Notification>(`/student/notifications/${id}/read`, { method: 'PUT' }),
+  getMyInternships: (opts?: ApiOpts) => apiFetch<Internship[]>('/student/internships', { signal: opts?.signal }),
+  createInternshipRequest: (payload: { organization: string; researchTopic: string; startDate: string; endDate: string }) =>
+    apiFetch<Internship>('/student/internships', { method: 'POST', body: payload }),
+  getMyComprehensiveExams: (opts?: ApiOpts) => apiFetch<ComprehensiveExam[]>('/student/comprehensive-exams', { signal: opts?.signal }),
 };

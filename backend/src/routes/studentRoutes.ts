@@ -19,6 +19,9 @@ import {
   getMyDeadlines,
   getMyForms,
   getMyMilestones,
+  getMyInternships,
+  createInternshipRequest,
+  getMyComprehensiveExams,
 } from '../controllers/studentController';
 import { authenticate, authorize } from '../middleware/auth';
 import { UserRole } from '../types';
@@ -54,5 +57,10 @@ router.get('/events', getMyEvents);
 router.get('/deadlines', getMyDeadlines);
 router.get('/forms', getMyForms);
 router.get('/milestones', getMyMilestones);
+
+router.get('/internships', getMyInternships);
+router.post('/internships', createInternshipRequest);
+
+router.get('/comprehensive-exams', getMyComprehensiveExams);
 
 export default router;

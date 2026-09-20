@@ -2,9 +2,13 @@ import { apiFetch } from './client';
 import type { ApiOpts } from './client';
 import type {
   ApprovalRequestView,
+  ComprehensiveExam,
+  ComprehensiveExamResult,
   EventView,
+  Internship,
   Pagination,
   PendingApprovals,
+  ScholarDueItem,
   StudentCourse,
   StudentListItem,
   StudentOption,
@@ -31,4 +35,17 @@ export const supervisorApi = {
     apiFetch<EventView>('/supervisor/events', { method: 'POST', body: payload }),
   getEvents: (params: { page?: number; limit?: number; eventType?: string } = {}, opts?: ApiOpts) =>
     apiFetch<{ events: EventView[]; pagination: Pagination }>('/supervisor/events', { query: params, signal: opts?.signal }),
+  getAssignedScholarsDues: (opts?: ApiOpts) =>
+    apiFetch<{ dues: ScholarDueItem[]; criticalCount: number; warningCount: number }>('/supervisor/dues', { signal: opts?.signal }),
+  recordComprehensiveExamResult: (payload: { studentId: string; attemptNumber: number; examDate: string; result: ComprehensiveExamResult; remarks?: string }) =>
+    apiFetch<ComprehensiveExam>('/supervisor/comprehensive-exam', { method: 'POST', body: payload }),
+  recordComprehensiveExam: (payload: { studentId: string; attemptNumber: number; examDate: string; result: ComprehensiveExamResult; remarks?: string }) =>
+    apiFetch<ComprehensiveExam>('/supervisor/comprehensive-exam', { method: 'POST', body: payload }),
+  getStudentComprehensiveExams: (studentId: string, opts?: ApiOpts) =>
+    apiFetch<ComprehensiveExam[]>(`/supervisor/students/${studentId}/comprehensive-exams`, { signal: opts?.signal }),
+  listScholarInternships: (opts?: ApiOpts) =>
+    apiFetch<Internship[]>('/supervisor/internships', { signal: opts?.signal }),
+  reviewInternship: (id: string, payload: { status: 'supervisor_approved' | 'rejected'; supervisorComment?: string }) =>
+    apiFetch<Internship>(`/supervisor/internships/${id}/review`, { method: 'PUT', body: payload }),
 };
+

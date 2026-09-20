@@ -49,7 +49,11 @@ describe('milestoneService', () => {
 
       milestones.forEach((m: any, i: number) => {
         expect(m.order).toBe(i);
-        expect(m.status).toBe(MilestoneStatus.PENDING);
+        if (i === 0) {
+          expect(m.status).toBe(MilestoneStatus.COMPLETED);
+        } else {
+          expect(m.status).toBe(MilestoneStatus.PENDING);
+        }
       });
     });
   });

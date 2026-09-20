@@ -3,6 +3,8 @@ import { Milestone } from '../models/Milestone';
 import { MilestoneKey, MilestoneStatus } from '../types';
 import { AppError } from '../middleware/errorHandler';
 
+import { StudentProfile } from '../models/StudentProfile';
+
 interface MilestoneSeed {
   key: MilestoneKey;
   title: string;
@@ -12,26 +14,54 @@ interface MilestoneSeed {
 
 export const DEFAULT_MILESTONES: MilestoneSeed[] = [
   { key: MilestoneKey.ADMISSION, title: 'Admission & Enrolment', description: 'Official admission into the PhD programme and enrolment for the first semester.', order: 0 },
-  { key: MilestoneKey.SRC_FORMED, title: 'SRC Formation', description: 'Formation of the Student Research Committee (SRC) to guide the research work.', order: 1 },
-  { key: MilestoneKey.COURSE_WORK, title: 'Course Work Completion', description: 'Successful completion of all prescribed course work credits.', order: 2 },
-  { key: MilestoneKey.COMPREHENSIVE_EXAM, title: 'Comprehensive Examination', description: 'Clearing the comprehensive examination covering the research area.', order: 3 },
-  { key: MilestoneKey.TOPIC_REGISTRATION, title: 'Topic Registration Seminar', description: 'Presentation of the research topic for formal registration.', order: 4 },
-  { key: MilestoneKey.ENHANCEMENT_SEMINAR, title: 'Stipend Enhancement Seminar', description: 'Seminar presented for stipend enhancement approval.', order: 5 },
-  { key: MilestoneKey.PRE_SUBMISSION, title: 'Pre-Submission Seminar', description: 'Pre-submission seminar presenting the final thesis draft.', order: 6 },
-  { key: MilestoneKey.THESIS_SUBMITTED, title: 'Thesis Submission', description: 'Formal submission of the completed thesis to the department.', order: 7 },
-  { key: MilestoneKey.THESIS_APPROVED, title: 'Thesis Approval', description: 'Approval of the submitted thesis by the examiners and committee.', order: 8 },
-  { key: MilestoneKey.DEFENSE, title: 'Oral Defence / Viva-Voce', description: 'Successful oral defence of the thesis in the viva-voce examination.', order: 9 },
-  { key: MilestoneKey.DEGREE_AWARDED, title: 'Degree Award', description: 'Award of the doctoral degree upon completion of all requirements.', order: 10 },
+  { key: MilestoneKey.SRC_FORMED, title: 'SRC Formation', description: 'Formation of the Student Research Committee (SRC) within 2 weeks of joining.', order: 1 },
+  { key: MilestoneKey.COURSE_WORK, title: 'Course Work Completion', description: 'Successful completion of all prescribed course work credits within 2 years.', order: 2 },
+  { key: MilestoneKey.COMPREHENSIVE_EXAM, title: 'Comprehensive Examination', description: 'Clearing the comprehensive examination covering the research area (max 2 attempts).', order: 3 },
+  { key: MilestoneKey.TOPIC_REGISTRATION, title: 'Topic Registration Seminar', description: 'Presentation of research topic for registration (within 6 months of comprehensive exam).', order: 4 },
+  { key: MilestoneKey.ENHANCEMENT_SEMINAR, title: 'Stipend Enhancement Seminar', description: 'Seminar presented for stipend enhancement approval after 24 months (2 years).', order: 5 },
+  { key: MilestoneKey.EXTENSION_SEMINAR, title: 'Extension Seminar (4th Year)', description: 'Seminar presentation after 48 months (4 years) if research work is incomplete.', order: 6 },
+  { key: MilestoneKey.PRE_SUBMISSION, title: 'Pre-Submission Seminar', description: 'Pre-submission seminar presenting the final thesis draft (earliest 2.5 years).', order: 7 },
+  { key: MilestoneKey.THESIS_SUBMITTED, title: 'Thesis Submission', description: 'Formal submission of completed thesis (within 2 months of pre-submission).', order: 8 },
+  { key: MilestoneKey.THESIS_APPROVED, title: 'Thesis Approval', description: 'Approval of the submitted thesis by the external examiners and committee.', order: 9 },
+  { key: MilestoneKey.DEFENSE, title: 'Oral Defence / Viva-Voce', description: 'Successful oral defence of the thesis in the viva-voce examination.', order: 10 },
+  { key: MilestoneKey.DEGREE_AWARDED, title: 'Degree Award', description: 'Award of the doctoral degree upon completion of all requirements at convocation.', order: 11 },
 ];
 
-export const seedMilestones = async (studentId: string): Promise<void> => {
+export const calculateMilestoneDueDate = (key: MilestoneKey, admissionDate: Date): Date | undefined => {
+  const baseTime = admissionDate.getTime();
+  const DAY_MS = 86400000;
+  switch (key) {
+    case MilestoneKey.SRC_FORMED:
+      return new Date(baseTime + 14 * DAY_MS);
+    case MilestoneKey.COURSE_WORK:
+    case MilestoneKey.TOPIC_REGISTRATION:
+    case MilestoneKey.ENHANCEMENT_SEMINAR:
+      return new Date(baseTime + 730 * DAY_MS); // 2 years
+    case MilestoneKey.EXTENSION_SEMINAR:
+      return new Date(baseTime + 1460 * DAY_MS); // 4 years
+    case MilestoneKey.PRE_SUBMISSION:
+      return new Date(baseTime + 913 * DAY_MS); // 2.5 years
+    default:
+      return undefined;
+  }
+};
+
+export const seedMilestones = async (studentId: string, customAdmissionDate?: Date): Promise<void> => {
+  let admissionDate = customAdmissionDate;
+  if (!admissionDate) {
+    const profile = await StudentProfile.findById(studentId).select('admissionDate createdAt').lean();
+    admissionDate = (profile as any)?.admissionDate || (profile as any)?.createdAt || new Date();
+  }
+
   const docs = DEFAULT_MILESTONES.map((m) => ({
     student: new mongoose.Types.ObjectId(studentId),
     key: m.key,
     title: m.title,
     description: m.description,
-    status: MilestoneStatus.PENDING,
+    status: m.key === MilestoneKey.ADMISSION ? MilestoneStatus.COMPLETED : MilestoneStatus.PENDING,
     order: m.order,
+    dueDate: admissionDate ? calculateMilestoneDueDate(m.key, admissionDate) : undefined,
+    completedAt: m.key === MilestoneKey.ADMISSION ? (admissionDate || new Date()) : undefined,
   }));
 
   try {

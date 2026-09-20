@@ -12,12 +12,17 @@ import type {
   Deadline,
   DeadlineFields,
   EventView,
+  ExaminerCategory,
+  ExternalExaminer,
+  ExternalExaminerStatus,
   FacultyView,
   Form,
   FormFields,
+  Internship,
   Milestone,
   MilestoneStatus,
   Pagination,
+  ScholarDueItem,
   SRCMemberRole,
   SRCCommittee,
   StudentProfileView,
@@ -77,4 +82,20 @@ export const adminApi = {
     apiDownload(`/admin/bulk-import/template/${type}`),
   bulkImport: (type: 'students' | 'faculty' | 'events', file: File) =>
     apiUpload<BulkImportReport>(`/admin/bulk-import/${type}`, file),
+  getDepartmentDues: (opts?: ApiOpts) =>
+    apiFetch<{ dues: ScholarDueItem[]; overdueCount: number; dueSoonCount: number; expiringRegistrationCount: number }>('/admin/dues', { signal: opts?.signal }),
+  listExternalExaminers: (params: { thesisId?: string; studentId?: string } = {}, opts?: ApiOpts) =>
+    apiFetch<ExternalExaminer[]>('/admin/examiners', { query: params, signal: opts?.signal }),
+  getExternalExaminers: (opts?: ApiOpts) =>
+    apiFetch<ExternalExaminer[]>('/admin/examiners', { signal: opts?.signal }),
+  addExternalExaminer: (payload: { thesisId: string; studentId: string; examinerName: string; examinerEmail: string; institution: string; invitationDate?: string }) =>
+    apiFetch<ExternalExaminer>('/admin/examiners', { method: 'POST', body: payload }),
+  updateExternalExaminer: (id: string, payload: { status?: ExternalExaminerStatus; category?: ExaminerCategory; reportUrl?: string; remarks?: string }) =>
+    apiFetch<ExternalExaminer>(`/admin/examiners/${id}`, { method: 'PUT', body: payload }),
+  listAllInternships: (opts?: ApiOpts) =>
+    apiFetch<Internship[]>('/admin/internships', { signal: opts?.signal }),
+  adminReviewInternship: (id: string, payload: { status: 'admin_approved' | 'rejected'; adminComment?: string }) =>
+    apiFetch<Internship>(`/admin/internships/${id}/review`, { method: 'PUT', body: payload }),
+  reviewInternship: (id: string, payload: { status: 'admin_approved' | 'rejected'; adminComment?: string }) =>
+    apiFetch<Internship>(`/admin/internships/${id}/review`, { method: 'PUT', body: payload }),
 };

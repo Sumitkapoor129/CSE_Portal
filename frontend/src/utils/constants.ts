@@ -1,11 +1,15 @@
 import type {
   ApprovalStatus,
+  ComprehensiveExamResult,
   EventType,
+  ExternalExaminerStatus,
   FacultyShort,
+  InternshipStatus,
   MilestoneStatus,
   SRCMemberRole,
   StudentType,
   ThesisStatus,
+  TimelineAlertSeverity,
   UserRole,
 } from '../types';
 
@@ -129,3 +133,72 @@ export const THESIS_STATUS_STYLE: Record<ThesisStatus, string> = {
   rejected: `${badge} bg-red-50 text-red-700 border-red-200`,
   resubmission_required: `${badge} bg-amber-50 text-amber-700 border-amber-200`,
 };
+
+export const INTERNSHIP_STATUS_LABELS: Record<InternshipStatus, string> = {
+  pending: 'Pending Review',
+  supervisor_approved: 'Supervisor Approved',
+  admin_approved: 'Approved',
+  rejected: 'Rejected',
+  completed: 'Completed',
+};
+
+export const INTERNSHIP_STATUS_STYLE: Record<InternshipStatus, string> = {
+  pending: `${badge} bg-amber-50 text-amber-700 border-amber-200`,
+  supervisor_approved: `${badge} bg-blue-50 text-blue-700 border-blue-200`,
+  admin_approved: `${badge} bg-green-50 text-green-700 border-green-200`,
+  rejected: `${badge} bg-red-50 text-red-700 border-red-200`,
+  completed: `${badge} bg-gray-50 text-gray-700 border-gray-200`,
+};
+
+export const EXAM_RESULT_LABELS: Record<ComprehensiveExamResult, string> = {
+  scheduled: 'Scheduled',
+  passed: 'Passed',
+  failed: 'Unsatisfactory / Failed',
+};
+
+export const EXAM_RESULT_STYLE: Record<ComprehensiveExamResult, string> = {
+  scheduled: `${badge} bg-blue-50 text-blue-700 border-blue-200`,
+  passed: `${badge} bg-green-50 text-green-700 border-green-200`,
+  failed: `${badge} bg-red-50 text-red-700 border-red-200`,
+};
+
+export const COMPREHENSIVE_RESULT_LABELS = EXAM_RESULT_LABELS;
+export const COMPREHENSIVE_RESULT_STYLE = EXAM_RESULT_STYLE;
+
+export const TIMELINE_SEVERITY_STYLE: Record<TimelineAlertSeverity, { border: string; bg: string; text: string; badge: string }> = {
+  critical: {
+    border: 'border-red-200',
+    bg: 'bg-red-50',
+    text: 'text-red-900',
+    badge: `${badge} bg-red-100 text-red-800 border-red-300`,
+  },
+  warning: {
+    border: 'border-amber-200',
+    bg: 'bg-amber-50',
+    text: 'text-amber-900',
+    badge: `${badge} bg-amber-100 text-amber-800 border-amber-300`,
+  },
+  info: {
+    border: 'border-blue-200',
+    bg: 'bg-blue-50',
+    text: 'text-blue-900',
+    badge: `${badge} bg-blue-100 text-blue-800 border-blue-300`,
+  },
+};
+
+export const EXAMINER_STATUS_LABELS: Record<ExternalExaminerStatus, string> = {
+  invited: 'Invited (Awaiting Response)',
+  accepted: 'Accepted',
+  declined: 'Declined',
+  report_submitted: 'Report Submitted',
+  overdue_replacement_required: 'Overdue (>4 Weeks) - Replace',
+};
+
+export const EXAMINER_STATUS_STYLE: Record<ExternalExaminerStatus, string> = {
+  invited: `${badge} bg-blue-50 text-blue-700 border-blue-200`,
+  accepted: `${badge} bg-emerald-50 text-emerald-700 border-emerald-200`,
+  declined: `${badge} bg-gray-50 text-gray-700 border-gray-200`,
+  report_submitted: `${badge} bg-green-50 text-green-700 border-green-200`,
+  overdue_replacement_required: `${badge} bg-red-50 text-red-700 border-red-200`,
+};
+
