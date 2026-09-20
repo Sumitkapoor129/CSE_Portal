@@ -5,7 +5,9 @@ import type {
   ExternalExaminerStatus,
   FacultyShort,
   InternshipStatus,
+  MilestoneDisplayStatus,
   MilestoneStatus,
+  Notification,
   SRCMemberRole,
   StudentType,
   ThesisStatus,
@@ -84,7 +86,7 @@ export function formatFaculty(faculty: FacultyShort | string | null | undefined)
     if (/^[0-9a-fA-F]{24}$/.test(faculty)) return 'Faculty member';
     return faculty;
   }
-  let name = typeof faculty.user === 'object' && faculty.user ? faculty.user.name : (faculty as any).name;
+  let name = typeof faculty.user === 'object' && faculty.user ? faculty.user.name : faculty.name;
   if (typeof name === 'string' && /^[0-9a-fA-F]{24}$/.test(name)) {
     name = undefined;
   }
@@ -104,6 +106,34 @@ export const MILESTONE_STATUS_STYLE: Record<MilestoneStatus, string> = {
   completed: `${badge} bg-green-50 text-green-700 border-green-200`,
   rejected: `${badge} bg-red-50 text-red-700 border-red-200`,
   skipped: `${badge} bg-amber-50 text-amber-700 border-amber-200`,
+};
+
+export const MILESTONE_DISPLAY_LABELS: Record<MilestoneDisplayStatus, string> = {
+  completed: 'Completed',
+  overdue: 'Overdue',
+  urgent: 'Urgent',
+  due_soon: 'Due Soon',
+  upcoming: 'Upcoming',
+  planned: 'Planned',
+  tbd: 'Date TBD',
+  pending: 'Pending',
+  in_progress: 'In Progress',
+  skipped: 'Skipped',
+  rejected: 'Rejected',
+};
+
+export const MILESTONE_DISPLAY_STYLE: Record<MilestoneDisplayStatus, string> = {
+  completed: `${badge} bg-green-50 text-green-700 border-green-200`,
+  overdue: `${badge} bg-red-50 text-red-700 border-red-200`,
+  urgent: `${badge} bg-red-50 text-red-700 border-red-200`,
+  due_soon: `${badge} bg-amber-50 text-amber-700 border-amber-200`,
+  upcoming: `${badge} bg-blue-50 text-blue-700 border-blue-200`,
+  planned: `${badge} bg-gray-50 text-gray-700 border-gray-200`,
+  tbd: `${badge} bg-gray-50 text-gray-600 border-gray-300 border-dashed`,
+  pending: `${badge} bg-gray-50 text-gray-700 border-gray-200`,
+  in_progress: `${badge} bg-blue-50 text-blue-700 border-blue-200`,
+  skipped: `${badge} bg-amber-50 text-amber-700 border-amber-200`,
+  rejected: `${badge} bg-red-50 text-red-700 border-red-200`,
 };
 
 export const APPROVAL_STATUS_STYLE: Record<ApprovalStatus, string> = {
@@ -184,6 +214,15 @@ export const TIMELINE_SEVERITY_STYLE: Record<TimelineAlertSeverity, { border: st
     text: 'text-blue-900',
     badge: `${badge} bg-blue-100 text-blue-800 border-blue-300`,
   },
+};
+
+export const REMINDER_SEVERITY_STYLE: Record<
+  NonNullable<Notification['severity']>,
+  { dot: string; border: string }
+> = {
+  critical: { dot: 'bg-red-500', border: 'border-l-red-400' },
+  warning: { dot: 'bg-amber-500', border: 'border-l-amber-400' },
+  info: { dot: 'bg-blue-500', border: 'border-l-blue-400' },
 };
 
 export const EXAMINER_STATUS_LABELS: Record<ExternalExaminerStatus, string> = {

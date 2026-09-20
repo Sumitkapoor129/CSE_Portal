@@ -243,6 +243,10 @@ export interface INotification {
   type: string;
   isRead: boolean;
   link?: string;
+  milestone?: string;
+  dueDate?: Date;
+  daysRemaining?: number;
+  severity?: 'info' | 'warning' | 'critical';
 }
 
 export interface IApprovalRequest {
@@ -266,6 +270,30 @@ export interface IMilestone {
   dueDate?: Date;
   completedAt?: Date;
   updatedBy?: string;
+  regulation?: string;
+  priority?: 'info' | 'warning' | 'critical';
+  dateSource?: 'auto' | 'manual';
+  reminderLevels?: string[];
+}
+
+export type MilestoneReminderLevel = '15' | '7' | '3' | '1' | '0' | 'overdue';
+
+export type StudentCategory = 'post_masters' | 'direct_after_graduation';
+
+export interface IMilestoneTimelineView {
+  admissionDate?: Date;
+  category?: StudentCategory;
+  milestones: any[];
+  summary: {
+    currentStage: string | null;
+    completed: number;
+    upcoming: number;
+    overdue: number;
+    total: number;
+  };
+  upcoming: any[];
+  nextMilestone: any | null;
+  validity?: IRegistrationValidity | null;
 }
 
 export interface IAuditLog {

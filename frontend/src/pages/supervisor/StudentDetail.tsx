@@ -22,6 +22,8 @@ import { formatDate } from '../../utils/formatDate';
 import {
   APPROVAL_STATUS_LABELS,
   APPROVAL_STATUS_STYLE,
+  COMPREHENSIVE_RESULT_LABELS,
+  COMPREHENSIVE_RESULT_STYLE,
   formatFaculty,
   INTERNSHIP_STATUS_LABELS,
   INTERNSHIP_STATUS_STYLE,
@@ -494,8 +496,8 @@ export function StudentDetail(): JSX.Element {
                               <TableCell className="text-gray-700">{formatDate(exam.examDate)}</TableCell>
                               <TableCell>
                                 <Badge
-                                  label={EXAM_RESULT_LABELS[exam.result]}
-                                  className={EXAM_RESULT_STYLE[exam.result]}
+                                  label={COMPREHENSIVE_RESULT_LABELS[exam.result]}
+                                  className={COMPREHENSIVE_RESULT_STYLE[exam.result]}
                                 />
                               </TableCell>
                               <TableCell className="text-gray-600">

@@ -77,20 +77,32 @@ export function StudentDashboard(): JSX.Element {
         </div>
       )}
 
-      {/* 8-Year Registration Validity Status */}
-      {!loading && !error && data?.validity && (
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-2 rounded-md border border-gray-200 bg-white px-4 py-3 text-xs text-gray-600 shadow-sm">
-          <div className="flex items-center gap-2">
-            <span className="font-semibold text-gray-800">PhD Registration Validity:</span>
-            {data.validity.status === 'expired' ? (
-              <span className="rounded bg-red-100 px-2 py-0.5 font-medium text-red-800">Expired (Exceeded 8 Years)</span>
-            ) : data.validity.status === 'expiring_soon' ? (
-              <span className="rounded bg-amber-100 px-2 py-0.5 font-medium text-amber-800">Expiring Soon ({data.validity.daysRemaining} days left)</span>
-            ) : (
-              <span className="rounded bg-green-100 px-2 py-0.5 font-medium text-green-800">Active ({data.validity.daysRemaining} days remaining · 8-Yr Max)</span>
-            )}
+      {/* Registration validity alert — only when expiring soon or already expired */}
+      {!loading && !error && data?.validity && data.validity.status !== 'valid' && (
+        <div
+          className={`mb-6 rounded-md border px-4 py-3 ${
+            data.validity.status === 'expired'
+              ? 'border-red-200 bg-red-50'
+              : 'border-amber-200 bg-amber-50'
+          }`}
+        >
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p
+              className={`text-sm font-semibold ${
+                data.validity.status === 'expired' ? 'text-red-900' : 'text-amber-900'
+              }`}
+            >
+              {data.validity.status === 'expired'
+                ? 'PhD registration validity expired (8-year limit exceeded).'
+                : `PhD registration validity expiring soon — ${data.validity.daysRemaining} day${
+                    data.validity.daysRemaining === 1 ? '' : 's'
+                  } left.`}
+            </p>
+            <span className="text-xs text-gray-600">
+              Enrolled: {formatDate(data.validity.admissionDate)} · Expiry:{' '}
+              {formatDate(data.validity.expiryDate)}
+            </span>
           </div>
-          <span>Enrolled: {formatDate(data.validity.admissionDate)} · Expiry: {formatDate(data.validity.expiryDate)}</span>
         </div>
       )}
 

@@ -7,7 +7,8 @@ import { StudentProfile } from '../models/StudentProfile';
 import { FacultyProfile } from '../models/FacultyProfile';
 import { AuditLog } from '../models/AuditLog';
 import { AppError, asyncHandler } from '../middleware/errorHandler';
-import { seedMilestones } from '../services/milestoneService';
+import { seedMilestones, applyAdmissionDate } from '../services/milestoneService';
+import { ensureMilestoneRemindersForStudent } from '../services/reminderService';
 import { UserRole, AuthRequest, StudentType, MilestoneKey, MilestoneStatus, EventType } from '../types';
 import { Milestone } from '../models/Milestone';
 import { Event } from '../models/Event';
@@ -356,7 +357,12 @@ async function importStudents(rows: Record<string, unknown>[], adminId: string):
 
         const profile = await StudentProfile.create(profileData);
         await seedMilestones(profile._id.toString());
+        // Recompute auto milestone due dates / reset reminder levels for the
+        // admission date just applied to this student.
+        await applyAdmissionDate(profile._id.toString(), profileData.admissionDate as Date);
         await applyMilestoneOverrides(row, profile._id.toString(), adminId);
+        // Write path: generate reminders from the final milestone state.
+        await ensureMilestoneRemindersForStudent(profile._id.toString(), user._id.toString());
 
         auditDocs.push({
           user: adminId,

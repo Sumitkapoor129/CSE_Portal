@@ -15,7 +15,8 @@ import { createNotification, createBulkNotifications } from '../utils/notify';
 import { Milestone } from '../models/Milestone';
 import { ExternalExaminer } from '../models/ExternalExaminer';
 import { Internship } from '../models/Internship';
-import { seedMilestones, getMilestones, updateMilestone as updateMilestoneService } from '../services/milestoneService';
+import { seedMilestones, getMilestones, updateMilestone as updateMilestoneService, applyAdmissionDate } from '../services/milestoneService';
+import { ensureMilestoneRemindersForStudent } from '../services/reminderService';
 import { getAdminDepartmentDues } from '../services/ordinanceTimelineService';
 import { resolveParticipants, parseEventDateTime } from '../utils/participants';
 import { sendNotificationEmail } from '../utils/email';
@@ -100,6 +101,10 @@ export const createStudent = asyncHandler(async (req: AuthRequest, res: Response
   });
 
   await seedMilestones(profile._id.toString());
+  if (admissionDate) {
+    await applyAdmissionDate(profile._id.toString(), new Date(profile.admissionDate));
+  }
+  await ensureMilestoneRemindersForStudent(profile._id.toString(), user._id.toString());
 
   await createAuditLog({
     user: req.user!.id,

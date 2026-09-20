@@ -76,12 +76,9 @@ export function AdminDashboard(): JSX.Element {
   const [adminInternshipComment, setAdminInternshipComment] = useState('');
   const [adminInternshipSubmitting, setAdminInternshipSubmitting] = useState(false);
   const [adminInternshipError, setAdminInternshipError] = useState<string | null>(null);
-  const [internshipFilter, setInternshipFilter] = useState<'pending' | 'all'>('pending');
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  if (user?.role !== 'admin') return <Navigate to="/" replace />;
-
-  const deptDues = data?.departmentDues?.dues || [];
+  const deptDues = useMemo(() => data?.departmentDues?.dues ?? [], [data]);
   const overdueCount = data?.departmentDues?.overdueCount || 0;
   const dueSoonCount = data?.departmentDues?.dueSoonCount || 0;
   const expiringRegCount = data?.departmentDues?.expiringRegistrationCount || 0;
@@ -98,10 +95,7 @@ export function AdminDashboard(): JSX.Element {
     return (allInternships ?? []).filter((item) => item.status === 'supervisor_approved');
   }, [allInternships]);
 
-  const displayedInternships = useMemo(() => {
-    if (internshipFilter === 'pending') return pendingAdminInternships;
-    return allInternships ?? [];
-  }, [internshipFilter, pendingAdminInternships, allInternships]);
+  if (user?.role !== 'admin') return <Navigate to="/" replace />;
 
   const handleAppointExaminer = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -243,8 +237,8 @@ export function AdminDashboard(): JSX.Element {
           <Tabs
             tabs={[
               { key: 'dues', label: `Ordinance Timeline Dues (${deptDues.length})` },
-              { key: 'examiners', label: `External Examiners Panel (${examiners?.length ?? 0})` },
-              { key: 'internships', label: `Internship Approvals (${allInternships?.length ?? 0})` },
+              { key: 'examiners', label: `External Examiners & 4-Week Tracker (${examiners?.length ?? 0})` },
+              { key: 'internships', label: `Internship & Research Leave Approvals (${pendingAdminInternships.length})` },
             ]}
             active={activeTab}
             onChange={(key) => setActiveTab(key as AdminDashboardTab)}
@@ -373,7 +367,7 @@ export function AdminDashboard(): JSX.Element {
             {activeTab === 'examiners' && (
               <div className="space-y-6">
                 <Card
-                  title="External Examiners Panel & 4-Week Response Tracker"
+                  title="External Examiners & 4-Week Tracker"
                   padded={false}
                   actions={
                     <Button
@@ -405,19 +399,27 @@ export function AdminDashboard(): JSX.Element {
                     <Table
                       ariaLabel="External Examiners Panel"
                       columns={[
-                        { key: 'examiner', header: 'Examiner' },
+                        { key: 'examiner', header: 'Examiner Name' },
+                        { key: 'scholar', header: 'Scholar' },
                         { key: 'institution', header: 'Institution' },
-                        { key: 'invitation', header: 'Invited / Response Due' },
+                        { key: 'invitation', header: 'Invitation Date' },
+                        { key: 'due', header: 'Response Due Date' },
                         { key: 'status', header: 'Status' },
-                        { key: 'category', header: 'Category' },
+                        { key: 'category', header: 'Category (I, II, III)' },
                         { key: 'action', header: 'Action' },
                       ]}
                     >
                       {!examiners || examiners.length === 0 ? (
-                        <TableEmpty colSpan={6} message="No external examiners currently appointed." />
+                        <TableEmpty colSpan={8} message="No external examiners currently appointed." />
                       ) : (
                         examiners.map((ex) => {
-                          const isPastDue = ex.isOverdue;
+                          const isPastDue = Boolean(ex.isOverdue) || (
+                            ex.status === 'invited' &&
+                            Boolean(ex.responseDueDate) &&
+                            new Date(ex.responseDueDate).getTime() < Date.now()
+                          );
+                          const scholar = typeof ex.student === 'object' && ex.student !== null ? ex.student : null;
+
                           return (
                             <TableRow key={ex._id}>
                               <TableCell>
@@ -426,14 +428,24 @@ export function AdminDashboard(): JSX.Element {
                                   <p className="text-xs text-gray-500">{ex.examinerEmail}</p>
                                 </div>
                               </TableCell>
-                              <TableCell className="text-gray-700">{ex.institution}</TableCell>
                               <TableCell>
-                                <div className="text-xs">
-                                  <p className="text-gray-700">Invited: {formatDate(ex.invitationDate)}</p>
-                                  <p className={isPastDue ? 'font-medium text-red-700' : 'text-gray-500'}>
-                                    Due: {formatDate(ex.responseDueDate)}
+                                <div>
+                                  <p className="font-medium text-gray-900">
+                                    {scholar?.user?.name || (typeof ex.student === 'string' ? ex.student : 'Scholar')}
                                   </p>
+                                  {scholar?.rollNumber && (
+                                    <p className="text-xs text-gray-500">Roll: {scholar.rollNumber}</p>
+                                  )}
                                 </div>
+                              </TableCell>
+                              <TableCell className="text-gray-700">{ex.institution}</TableCell>
+                              <TableCell className="text-xs text-gray-600">
+                                {formatDate(ex.invitationDate)}
+                              </TableCell>
+                              <TableCell className="text-xs">
+                                <span className={isPastDue ? 'font-semibold text-red-700' : 'text-gray-600'}>
+                                  {formatDate(ex.responseDueDate)}
+                                </span>
                               </TableCell>
                               <TableCell>
                                 <div className="flex flex-col gap-1">
@@ -442,16 +454,22 @@ export function AdminDashboard(): JSX.Element {
                                     className={EXAMINER_STATUS_STYLE[ex.status]}
                                   />
                                   {isPastDue && (
-                                    <span className="rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-bold text-red-800">
-                                      Overdue (&gt;4 Weeks)
-                                    </span>
+                                    <div>
+                                      <Badge
+                                        label="Overdue (>4 Weeks)"
+                                        className="bg-red-100 text-red-800 border-red-300 font-bold"
+                                      />
+                                      <p className="mt-1 text-[11px] font-medium text-red-700">
+                                        Recommendation: Replace Examiner
+                                      </p>
+                                    </div>
                                   )}
                                 </div>
                               </TableCell>
                               <TableCell>
                                 {ex.category ? (
                                   <span className="rounded bg-purple-50 px-2 py-0.5 text-xs font-semibold text-purple-800 border border-purple-200">
-                                    Cat {ex.category}
+                                    Category {ex.category}
                                   </span>
                                 ) : (
                                   <span className="text-xs text-gray-400">—</span>
@@ -486,9 +504,10 @@ export function AdminDashboard(): JSX.Element {
                                             : (ex.student as string)
                                         );
                                         setAppointThesisId(ex.thesis);
+                                        setAppointError(null);
                                       }}
                                     >
-                                      Replace
+                                      Replace Examiner
                                     </Button>
                                   )}
                                 </div>

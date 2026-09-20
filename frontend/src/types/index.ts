@@ -5,6 +5,10 @@ export type ThesisStatus = 'draft' | 'submitted' | 'under_review' | 'approved' |
 export type EventType = 'seminar' | 'comprehensive_exam' | 'progress_review' | 'thesis_defense' | 'course_registration' | 'other';
 export type SRCMemberRole = 'chairperson' | 'supervisor' | 'co_supervisor' | 'member';
 export type MilestoneStatus = 'pending' | 'in_progress' | 'completed' | 'skipped' | 'rejected';
+export type MilestoneDisplayStatus =
+  | 'completed' | 'pending' | 'in_progress' | 'overdue' | 'urgent' | 'due_soon'
+  | 'upcoming' | 'planned' | 'tbd' | 'skipped' | 'rejected';
+export type StudentCategory = 'post_masters' | 'direct_after_graduation';
 export type MilestoneKey =
   | 'admission' | 'src_formed' | 'course_work' | 'comprehensive_exam' | 'topic_registration'
   | 'enhancement_seminar' | 'extension_seminar' | 'pre_submission' | 'thesis_submitted' | 'thesis_approved' | 'defense' | 'degree_awarded';
@@ -223,6 +227,10 @@ export interface Notification {
   isRead: boolean;
   link?: string;
   createdAt: string;
+  severity?: 'info' | 'warning' | 'critical';
+  milestone?: string;
+  dueDate?: string;
+  daysRemaining?: number;
 }
 
 export interface Milestone {
@@ -236,6 +244,31 @@ export interface Milestone {
   dueDate?: string;
   completedAt?: string;
   updatedBy?: string;
+  regulation?: string;
+  priority?: 'info' | 'warning' | 'critical';
+  dateSource?: 'auto' | 'manual';
+  reminderLevels?: string[];
+  daysRemaining?: number;
+  displayStatus?: MilestoneDisplayStatus;
+  urgencyText?: string;
+}
+
+export interface MilestoneSummary {
+  currentStage: string | null;
+  completed: number;
+  upcoming: number;
+  overdue: number;
+  total: number;
+}
+
+export interface MilestoneTimelineView {
+  admissionDate: string | null;
+  category: StudentCategory | null;
+  validity: RegistrationValidity | null;
+  milestones: Milestone[];
+  summary: MilestoneSummary;
+  upcoming: Milestone[];
+  nextMilestone: Milestone | null;
 }
 
 export interface TimelineItem {

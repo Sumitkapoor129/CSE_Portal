@@ -14,11 +14,16 @@ const milestoneSchema = new Schema<any>(
     dueDate: { type: Date },
     completedAt: { type: Date },
     updatedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+    regulation: { type: String },
+    priority: { type: String, enum: ['info', 'warning', 'critical'] },
+    dateSource: { type: String, enum: ['auto', 'manual'], default: 'auto' },
+    reminderLevels: { type: [String], default: [] },
   },
   { timestamps: true }
 );
 
 milestoneSchema.index({ student: 1, key: 1 }, { unique: true });
 milestoneSchema.index({ student: 1, order: 1 });
+milestoneSchema.index({ status: 1, dueDate: 1 });
 
 export const Milestone = mongoose.model<IMilestoneDocument>('Milestone', milestoneSchema);

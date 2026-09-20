@@ -21,8 +21,27 @@ import { AppError, asyncHandler } from '../middleware/errorHandler';
 import { createAuditLog } from '../utils/audit';
 import { UserRole, AuthRequest, ApprovalStatus, ThesisStatus, MilestoneKey, MilestoneStatus, InternshipStatus } from '../types';
 import { computeTotalCredits } from '../services/creditService';
-import { getMilestones } from '../services/milestoneService';
+import {
+  getMilestones,
+  seedMilestones,
+  enrichMilestone,
+  calculateMilestoneDueDate,
+  getMilestoneTimeline as buildMilestoneTimeline,
+  parseDateOnly,
+  addMonths,
+  addYears,
+  derivePreSubmissionDependencies,
+} from '../services/milestoneService';
+import { ensureMilestoneRemindersForStudent, computeDaysRemaining } from '../services/reminderService';
 import { evaluateStudentTimeline } from '../services/ordinanceTimelineService';
+
+const MANUAL_MILESTONE_KEYS: MilestoneKey[] = [
+  MilestoneKey.COMPREHENSIVE_EXAM,
+  MilestoneKey.THESIS_SUBMITTED,
+  MilestoneKey.THESIS_APPROVED,
+  MilestoneKey.DEFENSE,
+  MilestoneKey.DEGREE_AWARDED,
+];
 
 const resolveFacultyDoc = async (rawFaculty: any): Promise<any> => {
   if (!rawFaculty) return null;
@@ -564,9 +583,28 @@ export const getTimeline = asyncHandler(async (req: AuthRequest, res: Response) 
 });
 
 export const getNotifications = asyncHandler(async (req: AuthRequest, res: Response) => {
-  const notifications = await Notification.find({ user: req.user!.id }).sort({ createdAt: -1 }).lean();
+  const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string, 10) || 50));
+
+  const notifications = await Notification.find({ user: req.user!.id })
+    .sort({ createdAt: -1 })
+    .limit(limit)
+    .lean();
 
   res.status(200).json({ success: true, data: notifications });
+});
+
+export const getUnreadNotificationsCount = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const unread = await Notification.countDocuments({ user: req.user!.id, isRead: false });
+  res.status(200).json({ success: true, data: { unread } });
+});
+
+export const markAllNotificationsRead = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const result = await Notification.updateMany(
+    { user: req.user!.id, isRead: false },
+    { $set: { isRead: true } }
+  );
+
+  res.status(200).json({ success: true, data: { updated: result.modifiedCount } });
 });
 
 export const markNotificationRead = asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -825,9 +863,158 @@ export const getMyMilestones = asyncHandler(async (req: AuthRequest, res: Respon
     throw new AppError('Student profile not found', 404);
   }
 
-  const milestones = await getMilestones(profile._id.toString());
+  let milestones = await getMilestones(profile._id.toString());
+  if (milestones.length === 0) {
+    await seedMilestones(profile._id.toString());
+    milestones = await getMilestones(profile._id.toString());
+  }
 
-  res.status(200).json({ success: true, data: milestones });
+  const enriched = milestones.map((m: any) => enrichMilestone(m, profile.admissionDate));
+
+  res.status(200).json({ success: true, data: enriched });
+});
+
+export const getMilestoneTimeline = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const profile = await StudentProfile.findOne({ user: req.user!.id })
+    .select('admissionDate requiredCredits lastDegree')
+    .lean();
+  if (!profile) {
+    throw new AppError('Student profile not found', 404);
+  }
+
+  const data = await buildMilestoneTimeline(profile);
+
+  res.status(200).json({ success: true, data });
+});
+
+export const completeMilestone = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { id } = req.params;
+  const { completedDate } = req.body;
+
+  const profile = await StudentProfile.findOne({ user: req.user!.id });
+  if (!profile) {
+    throw new AppError('Student profile not found', 404);
+  }
+
+  const milestone = await Milestone.findOne({ _id: id, student: profile._id });
+  if (!milestone) {
+    throw new AppError('Milestone not found', 404);
+  }
+
+  let completedAt: Date;
+  if (completedDate) {
+    const parsed = parseDateOnly(String(completedDate));
+    if (isNaN(parsed.getTime())) {
+      throw new AppError('Invalid completion date', 400);
+    }
+    if (computeDaysRemaining(parsed) > 0) {
+      throw new AppError('Completion date cannot be in the future', 400);
+    }
+    if (profile.admissionDate) {
+      const admission = new Date(profile.admissionDate);
+      const admissionDay = Date.UTC(admission.getFullYear(), admission.getMonth(), admission.getDate());
+      const completedDay = Date.UTC(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+      if (completedDay < admissionDay) {
+        throw new AppError('Completion date cannot be before admission date', 400);
+      }
+    }
+    completedAt = parsed;
+  } else {
+    completedAt = new Date();
+  }
+
+  milestone.status = MilestoneStatus.COMPLETED;
+  milestone.completedAt = completedAt;
+  milestone.reminderLevels = [];
+  milestone.updatedBy = req.user!.id;
+  await milestone.save();
+
+  if (milestone.key === MilestoneKey.PRE_SUBMISSION) {
+    await derivePreSubmissionDependencies(profile._id.toString(), completedAt);
+  }
+
+  // Write path: keep reminders fresh for the remaining milestones of this student.
+  await ensureMilestoneRemindersForStudent(profile._id.toString(), req.user!.id);
+
+  await createAuditLog({
+    user: req.user!.id,
+    action: 'milestone_completed',
+    entity: 'Milestone',
+    entityId: id,
+    newValue: { status: MilestoneStatus.COMPLETED, completedAt } as Record<string, unknown>,
+  });
+
+  res.status(200).json({ success: true, data: enrichMilestone(milestone.toObject(), profile.admissionDate) });
+});
+
+export const updateMyMilestoneDate = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { id } = req.params;
+  const { dueDate } = req.body;
+
+  const profile = await StudentProfile.findOne({ user: req.user!.id });
+  if (!profile) {
+    throw new AppError('Student profile not found', 404);
+  }
+
+  const milestone = await Milestone.findOne({ _id: id, student: profile._id });
+  if (!milestone) {
+    throw new AppError('Milestone not found', 404);
+  }
+
+  const admissionDate = profile.admissionDate ? new Date(profile.admissionDate) : undefined;
+  const autoDue = admissionDate
+    ? calculateMilestoneDueDate(milestone.key as MilestoneKey, admissionDate)
+    : undefined;
+  const isManualKey = MANUAL_MILESTONE_KEYS.includes(milestone.key as MilestoneKey);
+
+  if (milestone.dateSource === 'auto' && autoDue) {
+    throw new AppError('This milestone date is fixed by PhD regulations and cannot be changed.', 403);
+  }
+  if (!isManualKey && milestone.dueDate) {
+    throw new AppError('This milestone date is fixed by PhD regulations and cannot be changed.', 403);
+  }
+
+  let nextDueDate: Date | undefined;
+  if (dueDate) {
+    const parsed = parseDateOnly(String(dueDate));
+    if (isNaN(parsed.getTime())) {
+      throw new AppError('Invalid due date', 400);
+    }
+    if (admissionDate) {
+      // Allow manual correction up to 1 month before admission, and no later
+      // than 9 years after admission (registration validity window).
+      const earliest = addMonths(admissionDate, -1);
+      const latest = addYears(admissionDate, 9);
+      const day = Date.UTC(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+      if (day < Date.UTC(earliest.getFullYear(), earliest.getMonth(), earliest.getDate())) {
+        throw new AppError('Due date cannot be earlier than one month before admission', 400);
+      }
+      if (day > Date.UTC(latest.getFullYear(), latest.getMonth(), latest.getDate())) {
+        throw new AppError('Due date cannot be later than 9 years after admission', 400);
+      }
+    }
+    nextDueDate = parsed;
+  }
+  // dueDate null/absent keeps the existing clear-to-TBD behavior.
+
+  milestone.dueDate = nextDueDate;
+  milestone.dateSource = 'manual';
+  milestone.reminderLevels = [];
+  milestone.updatedBy = req.user!.id;
+  await milestone.save();
+
+  // Write path: refresh reminders for the newly scheduled milestone.
+  await ensureMilestoneRemindersForStudent(profile._id.toString(), req.user!.id);
+
+  await createAuditLog({
+    user: req.user!.id,
+    action: 'milestone_date_updated',
+    entity: 'Milestone',
+    entityId: id,
+    newValue: { dueDate: milestone.dueDate } as Record<string, unknown>,
+  });
+
+  res.status(200).json({ success: true, data: enrichMilestone(milestone.toObject(), admissionDate) });
 });
 
 export const getMyInternships = asyncHandler(async (req: AuthRequest, res: Response) => {

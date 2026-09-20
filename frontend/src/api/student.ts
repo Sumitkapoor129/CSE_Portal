@@ -11,6 +11,7 @@ import type {
   Form,
   Internship,
   Milestone,
+  MilestoneTimelineView,
   Notification,
   Semester,
   StudentDashboardData,
@@ -41,13 +42,21 @@ export const studentApi = {
     apiFetch<Thesis>('/student/thesis', { method: 'POST', body: payload }),
   getTimeline: (opts?: ApiOpts) => apiFetch<TimelineItem[]>('/student/timeline', { signal: opts?.signal }),
   getMilestones: (opts?: ApiOpts) => apiFetch<Milestone[]>('/student/milestones', { signal: opts?.signal }),
+  getMilestoneTimeline: (opts?: ApiOpts) => apiFetch<MilestoneTimelineView>('/student/milestones/timeline', { signal: opts?.signal }),
+  completeMilestone: (id: string, payload: { completedDate?: string }) =>
+    apiFetch<Milestone>(`/student/milestones/${id}/complete`, { method: 'PUT', body: payload }),
+  updateMilestoneDate: (id: string, payload: { dueDate?: string | null }) =>
+    apiFetch<Milestone>(`/student/milestones/${id}`, { method: 'PUT', body: payload }),
   getEvents: (upcoming?: boolean, opts?: ApiOpts) =>
     apiFetch<EventView[]>('/student/events', { ...(upcoming ? { query: { upcoming } } : {}), signal: opts?.signal }),
   getDeadlines: (upcoming?: boolean, opts?: ApiOpts) =>
     apiFetch<Deadline[]>('/student/deadlines', { ...(upcoming ? { query: { upcoming } } : {}), signal: opts?.signal }),
   getForms: (opts?: ApiOpts) => apiFetch<Form[]>('/student/forms', { signal: opts?.signal }),
   getNotifications: (opts?: ApiOpts) => apiFetch<Notification[]>('/student/notifications', { signal: opts?.signal }),
+  getUnreadNotificationCount: (opts?: ApiOpts) =>
+    apiFetch<{ unread: number }>('/student/notifications/unread-count', { signal: opts?.signal }),
   markNotificationRead: (id: string) => apiFetch<Notification>(`/student/notifications/${id}/read`, { method: 'PUT' }),
+  markAllNotificationsRead: () => apiFetch<{ updated: number }>('/student/notifications/read-all', { method: 'PUT' }),
   getMyInternships: (opts?: ApiOpts) => apiFetch<Internship[]>('/student/internships', { signal: opts?.signal }),
   createInternshipRequest: (payload: { organization: string; researchTopic: string; startDate: string; endDate: string }) =>
     apiFetch<Internship>('/student/internships', { method: 'POST', body: payload }),
