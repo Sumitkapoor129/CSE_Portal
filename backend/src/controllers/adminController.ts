@@ -203,7 +203,18 @@ export const listStudents = asyncHandler(async (req: AuthRequest, res: Response)
   const fieldList = fields ? (fields as string).split(',').map(f => f.trim()).filter(Boolean) : undefined;
   const projection = fieldList ? fieldList.join(' ') : undefined;
 
-  const query = StudentProfile.find(filter).populate('user', 'name email');
+  const query = StudentProfile.find(filter)
+    .populate('user', 'name email')
+    .populate({
+      path: 'supervisor',
+      select: 'employeeId department designation user',
+      populate: { path: 'user', select: 'name email' },
+    })
+    .populate({
+      path: 'coSupervisor',
+      select: 'employeeId department designation user',
+      populate: { path: 'user', select: 'name email' },
+    });
   if (projection) {
     query.select(projection);
   }
@@ -413,41 +424,46 @@ export const assignSupervisor = asyncHandler(async (req: AuthRequest, res: Respo
     throw new AppError('studentId and supervisorId are required', 400);
   }
 
-  const studentProfile = await StudentProfile.findById(studentId);
+  let studentProfile = await StudentProfile.findById(studentId);
+  if (!studentProfile) {
+    studentProfile = await StudentProfile.findOne({ user: studentId });
+  }
   if (!studentProfile) {
     throw new AppError('Student profile not found', 404);
   }
 
-  const supervisorProfile = await FacultyProfile.findById(supervisorId);
+  let supervisorProfile = await FacultyProfile.findById(supervisorId);
+  if (!supervisorProfile) {
+    supervisorProfile = await FacultyProfile.findOne({ user: supervisorId });
+  }
   if (!supervisorProfile) {
     throw new AppError('Supervisor profile not found', 404);
   }
 
+  let coProfile: any = null;
   if (coSupervisorId) {
-    const coProfile = await FacultyProfile.findById(coSupervisorId);
+    coProfile = await FacultyProfile.findById(coSupervisorId);
+    if (!coProfile) {
+      coProfile = await FacultyProfile.findOne({ user: coSupervisorId });
+    }
     if (!coProfile) {
       throw new AppError('Co-supervisor profile not found', 404);
     }
   }
 
-  // One active/live Supervisor row per student is guaranteed by the unique
-  // `student` index, so reassignment updates the existing row in place rather
-  // than creating a second row (which would fail with E11000).
   const supervisorRecord = await Supervisor.findOneAndUpdate(
-    { student: studentId },
+    { student: studentProfile._id },
     {
-      supervisor: supervisorId,
-      coSupervisor: coSupervisorId || undefined,
+      supervisor: supervisorProfile._id,
+      coSupervisor: coProfile ? coProfile._id : undefined,
       assignedDate: new Date(),
       isActive: true,
     },
     { upsert: true, new: true }
   );
 
-  studentProfile.supervisor = supervisorId;
-  if (coSupervisorId) {
-    studentProfile.coSupervisor = coSupervisorId;
-  }
+  studentProfile.supervisor = supervisorProfile._id.toString();
+  studentProfile.coSupervisor = coProfile ? coProfile._id.toString() : undefined;
   await studentProfile.save();
 
   await createAuditLog({
@@ -476,53 +492,119 @@ const validateSRCMembers = async (members: Array<{ role: string; faculty: string
     throw new AppError('SRC committee must have exactly one chairperson', 400);
   }
 
-  const studentProfile = await StudentProfile.findById(studentId);
+  let studentProfile = await StudentProfile.findById(studentId);
+  if (!studentProfile) {
+    studentProfile = await StudentProfile.findOne({ user: studentId });
+  }
   if (!studentProfile) {
     throw new AppError('Student profile not found', 404);
   }
 
-  const supervisorMember = members.find((m) => m.role === SRCMemberRole.SUPERVISOR);
-  if (supervisorMember && studentProfile.supervisor) {
-    if (supervisorMember.faculty !== studentProfile.supervisor.toString()) {
-      throw new AppError('SRC supervisor must match the assigned supervisor', 400);
+  let supervisorId = studentProfile.supervisor?.toString();
+  if (!supervisorId) {
+    const active = await Supervisor.findOne({ student: studentProfile._id, isActive: true });
+    if (active && active.supervisor) {
+      supervisorId = active.supervisor.toString();
+      studentProfile.supervisor = active.supervisor;
+      await studentProfile.save();
     }
+  }
+
+  if (!supervisorId) {
+    throw new AppError('A supervisor must be assigned to the student before creating the SRC committee.', 400);
+  }
+
+  const supervisorMember = members.find((m) => m.role === SRCMemberRole.SUPERVISOR);
+  if (supervisorMember && supervisorMember.faculty !== supervisorId) {
+    throw new AppError('SRC supervisor must match the assigned supervisor', 400);
+  }
+
+  const nonSupervisorRoles = members.filter(
+    (m) => m.faculty === supervisorId && m.role !== SRCMemberRole.SUPERVISOR
+  );
+  if (nonSupervisorRoles.length > 0) {
+    throw new AppError('The assigned supervisor cannot also be selected as Chairperson or Member.', 400);
+  }
+
+  const regularMembers = members.filter((m) => m.role === SRCMemberRole.MEMBER);
+  if (regularMembers.length < 2) {
+    throw new AppError('SRC committee must have at least 2 regular members (per ordinance)', 400);
   }
 };
 
 export const createSRCCommittee = asyncHandler(async (req: AuthRequest, res: Response) => {
-  const { studentId, members } = req.body;
+  const { studentId, members: rawMembers } = req.body;
 
-  if (!studentId || !members || !Array.isArray(members) || members.length === 0) {
-    throw new AppError('studentId and at least one member are required', 400);
+  if (!studentId || !rawMembers || !Array.isArray(rawMembers) || rawMembers.length === 0) {
+    throw new AppError('studentId and committee members are required', 400);
   }
 
-  const existing = await SRCCommittee.findOne({ student: studentId });
+  let studentProfile = await StudentProfile.findById(studentId);
+  if (!studentProfile) {
+    studentProfile = await StudentProfile.findOne({ user: studentId });
+  }
+  if (!studentProfile) {
+    throw new AppError('Student profile not found', 404);
+  }
+
+  let supervisorId = studentProfile.supervisor?.toString();
+  let coSupervisorId = studentProfile.coSupervisor?.toString();
+  if (!supervisorId) {
+    const active = await Supervisor.findOne({ student: studentProfile._id, isActive: true });
+    if (active && active.supervisor) {
+      supervisorId = active.supervisor.toString();
+      coSupervisorId = active.coSupervisor?.toString();
+      studentProfile.supervisor = active.supervisor;
+      if (active.coSupervisor) studentProfile.coSupervisor = active.coSupervisor;
+      await studentProfile.save();
+    }
+  }
+
+  if (!supervisorId) {
+    throw new AppError('A supervisor must be assigned to the student before creating the SRC committee.', 400);
+  }
+
+  const members = [...rawMembers];
+  if (!members.some((m) => m.role === SRCMemberRole.SUPERVISOR)) {
+    members.push({ faculty: supervisorId, role: SRCMemberRole.SUPERVISOR });
+  }
+  if (coSupervisorId && !members.some((m) => m.role === SRCMemberRole.CO_SUPERVISOR)) {
+    members.push({ faculty: coSupervisorId, role: SRCMemberRole.CO_SUPERVISOR });
+  }
+
+  const existing = await SRCCommittee.findOne({ student: studentProfile._id });
   if (existing) {
     throw new AppError('SRC committee already exists for this student. Use update instead.', 409);
   }
 
-  await validateSRCMembers(members, studentId);
+  await validateSRCMembers(members, studentProfile._id.toString());
 
-  const committee = await SRCCommittee.create({ student: studentId, members });
+  const committee = await SRCCommittee.create({ student: studentProfile._id, members });
 
-  await StudentProfile.findByIdAndUpdate(studentId, { srcCommittee: committee._id.toString() });
+  await StudentProfile.findByIdAndUpdate(studentProfile._id, { srcCommittee: committee._id.toString() });
 
   await createAuditLog({
     user: req.user!.id,
     action: 'CREATE_SRC_COMMITTEE',
     entity: 'SRCCommittee',
     entityId: committee._id.toString(),
-    newValue: { studentId, members } as Record<string, unknown>,
+    newValue: { studentId: studentProfile._id, members } as Record<string, unknown>,
   });
 
-  res.status(201).json({ success: true, data: committee });
+  const populated = await SRCCommittee.findById(committee._id).populate({
+    path: 'members.faculty',
+    select: 'employeeId department designation user profilePhoto',
+    populate: { path: 'user', select: 'name email' },
+  });
+
+  res.status(201).json({ success: true, data: populated || committee });
 });
 
 export const updateSRCCommittee = asyncHandler(async (req: AuthRequest, res: Response) => {
   const { id } = req.params;
-  const { members } = req.body;
+  const { members: rawMembers } = req.body;
 
-  if (!members || !Array.isArray(members)) {
+  if (!rawMembers || !Array.isArray(rawMembers)) {
     throw new AppError('members array is required', 400);
   }
 
@@ -531,7 +613,33 @@ export const updateSRCCommittee = asyncHandler(async (req: AuthRequest, res: Res
     throw new AppError('SRC committee not found', 404);
   }
 
-  await validateSRCMembers(members, committee.student);
+  let studentProfile = await StudentProfile.findById(committee.student);
+  if (!studentProfile) {
+    studentProfile = await StudentProfile.findOne({ user: committee.student });
+  }
+
+  let supervisorId = studentProfile?.supervisor?.toString();
+  let coSupervisorId = studentProfile?.coSupervisor?.toString();
+  if (!supervisorId && studentProfile) {
+    const active = await Supervisor.findOne({ student: studentProfile._id, isActive: true });
+    if (active && active.supervisor) {
+      supervisorId = active.supervisor.toString();
+      coSupervisorId = active.coSupervisor?.toString();
+      studentProfile.supervisor = active.supervisor;
+      if (active.coSupervisor) studentProfile.coSupervisor = active.coSupervisor;
+      await studentProfile.save();
+    }
+  }
+
+  const members = [...rawMembers];
+  if (supervisorId && !members.some((m) => m.role === SRCMemberRole.SUPERVISOR)) {
+    members.push({ faculty: supervisorId, role: SRCMemberRole.SUPERVISOR });
+  }
+  if (coSupervisorId && !members.some((m) => m.role === SRCMemberRole.CO_SUPERVISOR)) {
+    members.push({ faculty: coSupervisorId, role: SRCMemberRole.CO_SUPERVISOR });
+  }
+
+  await validateSRCMembers(members, committee.student.toString());
 
   const previousValue = committee.toObject() as unknown as Record<string, unknown>;
 
@@ -547,7 +655,13 @@ export const updateSRCCommittee = asyncHandler(async (req: AuthRequest, res: Res
     newValue: { members } as Record<string, unknown>,
   });
 
-  res.status(200).json({ success: true, data: committee });
+  const populated = await SRCCommittee.findById(committee._id).populate({
+    path: 'members.faculty',
+    select: 'employeeId department designation user profilePhoto',
+    populate: { path: 'user', select: 'name email' },
+  });
+
+  res.status(200).json({ success: true, data: populated || committee });
 });
 
 // ─── Event Management ────────────────────────────────────────────────────────

@@ -53,7 +53,7 @@ export const registerStudent = asyncHandler(async (req: Request, res: Response) 
     password: hashedPassword,
     name,
     role: UserRole.STUDENT,
-    isActive: false,
+    isActive: true,
   });
 
   const profile = await StudentProfile.create({
@@ -67,12 +67,16 @@ export const registerStudent = asyncHandler(async (req: Request, res: Response) 
 
   await seedMilestones(profile._id.toString());
 
-  const otp = await createOTPRecord(user.email);
-  await sendOTPEmail(user.email, otp);
+  try {
+    const otp = await createOTPRecord(user.email);
+    await sendOTPEmail(user.email, otp);
+  } catch (err) {
+    console.warn('OTP email delivery failed (optional on registration):', err);
+  }
 
   const accessToken = generateAccessToken({ id: user._id.toString(), role: user.role, email: user.email });
   const { token: refreshToken } = await createRefreshSession(user._id.toString());
-  const payload = await buildUserPayload(user);
+  const payload = await buildUserPayload(user, profile);
 
   res.status(201).json({
     success: true,
@@ -80,7 +84,7 @@ export const registerStudent = asyncHandler(async (req: Request, res: Response) 
       accessToken,
       refreshToken,
       user: payload,
-      message: 'OTP sent to your email. Please verify to activate your account.',
+      message: 'Registration successful.',
     },
   });
 });

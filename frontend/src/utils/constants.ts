@@ -75,9 +75,19 @@ export const SRC_ROLE_LABELS: Record<SRCMemberRole, string> = {
 
 export function formatFaculty(faculty: FacultyShort | string | null | undefined): string {
   if (!faculty) return 'Not assigned';
-  if (typeof faculty === 'string') return faculty;
+  if (typeof faculty === 'string') {
+    if (/^[0-9a-fA-F]{24}$/.test(faculty)) return 'Faculty member';
+    return faculty;
+  }
+  let name = typeof faculty.user === 'object' && faculty.user ? faculty.user.name : (faculty as any).name;
+  if (typeof name === 'string' && /^[0-9a-fA-F]{24}$/.test(name)) {
+    name = undefined;
+  }
   const parts = [faculty.designation, faculty.department].filter((part): part is string => Boolean(part));
-  return parts.length > 0 ? parts.join(' · ') : 'Faculty member';
+  const roleInfo = parts.length > 0 ? parts.join(' · ') : '';
+  if (name && roleInfo) return `${name} (${roleInfo})`;
+  if (name) return name;
+  return roleInfo || 'Faculty member';
 }
 
 const badge =

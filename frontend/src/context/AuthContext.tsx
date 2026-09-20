@@ -7,6 +7,7 @@ interface AuthContextValue {
   user: AuthUser | null;
   initializing: boolean;
   login: (email: string, password: string) => Promise<AuthUser>;
+  register: (payload: import('../api/auth').RegisterPayload) => Promise<AuthUser>;
   logout: () => void;
   reload: () => Promise<void>;
 }
@@ -48,6 +49,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return res.user;
   }, []);
 
+  const register = useCallback(async (payload: import('../api/auth').RegisterPayload) => {
+    const res = await authApi.register(payload);
+    if (res.accessToken && res.refreshToken) {
+      setStoredTokens(res.accessToken, res.refreshToken);
+      setUser(res.user);
+    }
+    return res.user;
+  }, []);
+
   const logout = useCallback(() => {
     const refresh = getStoredRefreshToken();
     if (refresh) authApi.logout(refresh).catch(() => undefined);
@@ -56,8 +66,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ user, initializing, login, logout, reload }),
-    [user, initializing, login, logout, reload]
+    () => ({ user, initializing, login, register, logout, reload }),
+    [user, initializing, login, register, logout, reload]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -16,6 +16,7 @@ import { DueDateCell } from '../../components/student/DueDateCell';
 import { formatDate } from '../../utils/formatDate';
 import {
   EVENT_TYPE_LABELS,
+  formatFaculty,
   MILESTONE_STATUS_LABELS,
   MILESTONE_STATUS_STYLE,
   THESIS_STATUS_LABELS,
@@ -48,6 +49,19 @@ export function StudentDashboard(): JSX.Element {
       {!loading && !error && data && !data.profile.supervisor && (
         <div className="mb-6 rounded-md border border-blue-200 bg-blue-50 px-4 py-3">
           <p className="text-sm text-blue-800">Awaiting supervisor assignment.</p>
+        </div>
+      )}
+      {!loading && !error && data && data.profile.supervisor && (
+        <div className="mb-6 rounded-md border border-green-200 bg-green-50 px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <p className="text-sm text-green-900">
+            <span className="font-semibold text-green-950">Supervisor:</span> {formatFaculty(data.profile.supervisor)}
+            {data.profile.coSupervisor ? (
+              <> · <span className="font-semibold text-green-950">Co-supervisor:</span> {formatFaculty(data.profile.coSupervisor)}</>
+            ) : null}
+          </p>
+          <Link to="/student/profile" className="text-xs font-medium text-green-700 hover:text-green-800 underline">
+            View full profile →
+          </Link>
         </div>
       )}
       {loading && (

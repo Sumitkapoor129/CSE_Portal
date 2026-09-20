@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { ChangeEvent, FormEvent, JSX } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 import { Alert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
@@ -10,7 +11,6 @@ import { STUDENT_TYPE_OPTIONS } from '../../utils/constants';
 import { applyServerError } from '../../utils/errors';
 import { required, validateEmail } from '../../utils/validators';
 import type { RegisterPayload } from '../../api/auth';
-import { authApi } from '../../api/auth';
 
 interface FormState {
   name: string;
@@ -44,6 +44,7 @@ const emptyForm: FormState = {
 
 export function RegisterPage(): JSX.Element {
   const navigate = useNavigate();
+  const { register: authRegister } = useAuth();
 
   const [form, setForm] = useState<FormState>(emptyForm);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
@@ -95,10 +96,8 @@ export function RegisterPage(): JSX.Element {
     };
 
     try {
-      await authApi.register(payload);
-      setSuccessNote('Verification OTP sent to your email.');
-      navigate('/auth/verify-otp', { state: { email: form.email } });
-      setSubmitting(false);
+      await authRegister(payload);
+      navigate('/', { replace: true });
     } catch (err) {
       setSubmitting(false);
       applyServerError(err, setFieldErrors, setServerError);

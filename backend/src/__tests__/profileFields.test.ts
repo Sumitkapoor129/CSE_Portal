@@ -49,7 +49,7 @@ describe('F7 profile fields', () => {
     expect(stored!.isProfileComplete).toBe(false);
   });
 
-  it('completes the profile when all required fields are present', async () => {
+  it('completes the profile and assigns 12 credits for M.Tech', async () => {
     const res = await request(app).put('/api/student/profile')
       .set('Authorization', `Bearer ${token}`)
       .send({
@@ -60,5 +60,18 @@ describe('F7 profile fields', () => {
     expect(res.status).toBe(200);
     const stored = await StudentProfile.findById(profileId);
     expect(stored!.isProfileComplete).toBe(true);
+    expect(stored!.requiredCredits).toBe(12);
+  });
+
+  it('assigns 20 credits for B.Tech direct admission scholars', async () => {
+    const res = await request(app).put('/api/student/profile')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        lastDegree: 'B.Tech',
+      });
+    expect(res.status).toBe(200);
+    const stored = await StudentProfile.findById(profileId);
+    expect(stored!.requiredCredits).toBe(20);
+    expect(stored!.lastDegree).toBe('B.Tech');
   });
 });

@@ -33,6 +33,7 @@ export interface StudentProfileUpdate {
   institution?: string;
   graduationYear?: number;
   qualification?: string;
+  requiredCredits?: number;
 }
 
 export interface Pagination {
@@ -57,6 +58,8 @@ export interface FacultyShort {
   department?: string;
   designation?: string;
   profilePhoto?: string;
+  user?: UserShort;
+  name?: string;
 }
 
 export interface SRCMember {
@@ -92,6 +95,7 @@ export interface StudentProfileView {
   researchArea: string;
   admissionDate: string;
   requiredCredits: number;
+  lastDegree?: string;
   profilePhoto?: string;
   supervisor?: FacultyShort | null;
   coSupervisor?: FacultyShort | null;

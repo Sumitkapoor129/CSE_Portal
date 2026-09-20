@@ -10,11 +10,48 @@ import { Notification } from '../models/Notification';
 import { Deadline } from '../models/Deadline';
 import { Event } from '../models/Event';
 import { Form } from '../models/Form';
+import { Supervisor } from '../models/Supervisor';
+import { SRCCommittee } from '../models/SRCCommittee';
+import { User } from '../models/User';
+import { FacultyProfile } from '../models/FacultyProfile';
 import { AppError, asyncHandler } from '../middleware/errorHandler';
 import { createAuditLog } from '../utils/audit';
 import { UserRole, AuthRequest, ApprovalStatus, ThesisStatus } from '../types';
 import { computeTotalCredits } from '../services/creditService';
 import { getMilestones } from '../services/milestoneService';
+
+const resolveFacultyDoc = async (rawFaculty: any): Promise<any> => {
+  if (!rawFaculty) return null;
+  if (typeof rawFaculty === 'object' && rawFaculty.user && typeof rawFaculty.user === 'object' && rawFaculty.user.name) {
+    return rawFaculty;
+  }
+  const id = typeof rawFaculty === 'object' ? rawFaculty._id?.toString() || rawFaculty.toString() : rawFaculty.toString();
+  if (!id || typeof id !== 'string' || id.length !== 24) {
+    return rawFaculty;
+  }
+
+  let fp = await FacultyProfile.findById(id)
+    .populate('user', 'name email')
+    .lean();
+  if (fp && fp.user) return fp;
+
+  fp = await FacultyProfile.findOne({ user: id })
+    .populate('user', 'name email')
+    .lean();
+  if (fp && fp.user) return fp;
+
+  const u = await User.findById(id).select('name email').lean();
+  if (u) {
+    return {
+      _id: u._id,
+      user: { _id: u._id, name: u.name, email: u.email },
+      designation: 'Faculty',
+      department: 'CSE',
+    };
+  }
+
+  return rawFaculty;
+};
 
 const requireAssignedSupervisor = (profile: { supervisor?: string }, action: string): void => {
   if (!profile.supervisor) {
@@ -41,14 +78,85 @@ const deriveSemesterDates = (academicYear?: string): { startDate: Date; endDate:
 };
 
 export const getProfile = asyncHandler(async (req: AuthRequest, res: Response) => {
-  const profile = await StudentProfile.findOne({ user: req.user!.id })
+  let profile = await StudentProfile.findOne({ user: req.user!.id })
     .populate('user', 'name email role')
-    .populate('supervisor', 'employeeId department designation')
-    .populate('srcCommittee')
+    .populate({
+      path: 'supervisor',
+      select: 'employeeId department designation user profilePhoto',
+      populate: { path: 'user', select: 'name email' },
+    })
+    .populate({
+      path: 'coSupervisor',
+      select: 'employeeId department designation user profilePhoto',
+      populate: { path: 'user', select: 'name email' },
+    })
+    .populate({
+      path: 'srcCommittee',
+      populate: {
+        path: 'members.faculty',
+        select: 'employeeId department designation user profilePhoto',
+        populate: { path: 'user', select: 'name email' },
+      },
+    })
     .lean();
 
   if (!profile) {
     throw new AppError('Student profile not found', 404);
+  }
+
+  if (!profile.supervisor) {
+    const activeSupervisor = await Supervisor.findOne({ student: profile._id, isActive: true })
+      .populate({
+        path: 'supervisor',
+        select: 'employeeId department designation user profilePhoto',
+        populate: { path: 'user', select: 'name email' },
+      })
+      .populate({
+        path: 'coSupervisor',
+        select: 'employeeId department designation user profilePhoto',
+        populate: { path: 'user', select: 'name email' },
+      })
+      .lean();
+
+    if (activeSupervisor && activeSupervisor.supervisor) {
+      profile.supervisor = activeSupervisor.supervisor as any;
+      if (activeSupervisor.coSupervisor) {
+        profile.coSupervisor = activeSupervisor.coSupervisor as any;
+      }
+      await StudentProfile.findByIdAndUpdate(profile._id, {
+        supervisor: (activeSupervisor.supervisor as any)._id || activeSupervisor.supervisor,
+        ...(activeSupervisor.coSupervisor && {
+          coSupervisor: (activeSupervisor.coSupervisor as any)._id || activeSupervisor.coSupervisor,
+        }),
+      });
+    }
+  }
+
+  if (!profile.srcCommittee) {
+    const activeCommittee = await SRCCommittee.findOne({ student: profile._id })
+      .populate({
+        path: 'members.faculty',
+        select: 'employeeId department designation user profilePhoto',
+        populate: { path: 'user', select: 'name email' },
+      })
+      .lean();
+    if (activeCommittee) {
+      profile.srcCommittee = activeCommittee as any;
+      await StudentProfile.findByIdAndUpdate(profile._id, { srcCommittee: activeCommittee._id });
+    }
+  }
+
+  if (profile.supervisor) {
+    profile.supervisor = await resolveFacultyDoc(profile.supervisor);
+  }
+  if (profile.coSupervisor) {
+    profile.coSupervisor = await resolveFacultyDoc(profile.coSupervisor);
+  }
+  if (profile.srcCommittee && Array.isArray((profile.srcCommittee as any).members)) {
+    const committee = profile.srcCommittee as any;
+    for (const member of committee.members) {
+      member.faculty = await resolveFacultyDoc(member.faculty);
+    }
   }
 
   res.status(200).json({ success: true, data: profile });
@@ -74,6 +182,17 @@ export const updateProfile = asyncHandler(async (req: AuthRequest, res: Response
     }
   }
   if (req.body.dateOfBirth) profile.dateOfBirth = new Date(req.body.dateOfBirth);
+
+  if (req.body.requiredCredits !== undefined) {
+    profile.requiredCredits = Number(req.body.requiredCredits);
+  } else if (req.body.lastDegree) {
+    const deg = String(req.body.lastDegree).trim().toLowerCase();
+    if (deg.includes('b.tech') || deg.includes('btech') || deg.includes('b.e') || deg === 'btech' || deg === 'b.tech') {
+      profile.requiredCredits = 20;
+    } else if (deg.includes('m.tech') || deg.includes('mtech') || deg.includes('m.e') || deg.includes('m.sc') || deg === 'mtech' || deg === 'm.tech') {
+      profile.requiredCredits = 12;
+    }
+  }
 
   const REQUIRED_PROFILE_FIELDS = ['researchArea', 'phone', 'address', 'lastDegree', 'institution', 'graduationYear', 'dateOfBirth'] as const;
   profile.isProfileComplete = REQUIRED_PROFILE_FIELDS.every((f) => {
@@ -436,14 +555,85 @@ export const markNotificationRead = asyncHandler(async (req: AuthRequest, res: R
 });
 
 export const getDashboard = asyncHandler(async (req: AuthRequest, res: Response) => {
-  const profile = await StudentProfile.findOne({ user: req.user!.id })
+  let profile = await StudentProfile.findOne({ user: req.user!.id })
     .populate('user', 'name email role')
-    .populate('supervisor', 'employeeId department designation')
-    .populate('srcCommittee')
+    .populate({
+      path: 'supervisor',
+      select: 'employeeId department designation user',
+      populate: { path: 'user', select: 'name email' },
+    })
+    .populate({
+      path: 'coSupervisor',
+      select: 'employeeId department designation user',
+      populate: { path: 'user', select: 'name email' },
+    })
+    .populate({
+      path: 'srcCommittee',
+      populate: {
+        path: 'members.faculty',
+        select: 'employeeId department designation user profilePhoto',
+        populate: { path: 'user', select: 'name email' },
+      },
+    })
     .lean();
 
   if (!profile) {
     throw new AppError('Student profile not found', 404);
+  }
+
+  if (!profile.supervisor) {
+    const activeSupervisor = await Supervisor.findOne({ student: profile._id, isActive: true })
+      .populate({
+        path: 'supervisor',
+        select: 'employeeId department designation user',
+        populate: { path: 'user', select: 'name email' },
+      })
+      .populate({
+        path: 'coSupervisor',
+        select: 'employeeId department designation user',
+        populate: { path: 'user', select: 'name email' },
+      })
+      .lean();
+
+    if (activeSupervisor && activeSupervisor.supervisor) {
+      profile.supervisor = activeSupervisor.supervisor as any;
+      if (activeSupervisor.coSupervisor) {
+        profile.coSupervisor = activeSupervisor.coSupervisor as any;
+      }
+      await StudentProfile.findByIdAndUpdate(profile._id, {
+        supervisor: (activeSupervisor.supervisor as any)._id || activeSupervisor.supervisor,
+        ...(activeSupervisor.coSupervisor && {
+          coSupervisor: (activeSupervisor.coSupervisor as any)._id || activeSupervisor.coSupervisor,
+        }),
+      });
+    }
+  }
+
+  if (!profile.srcCommittee) {
+    const activeCommittee = await SRCCommittee.findOne({ student: profile._id })
+      .populate({
+        path: 'members.faculty',
+        select: 'employeeId department designation user profilePhoto',
+        populate: { path: 'user', select: 'name email' },
+      })
+      .lean();
+    if (activeCommittee) {
+      profile.srcCommittee = activeCommittee as any;
+      await StudentProfile.findByIdAndUpdate(profile._id, { srcCommittee: activeCommittee._id });
+    }
+  }
+
+  if (profile.supervisor) {
+    profile.supervisor = await resolveFacultyDoc(profile.supervisor);
+  }
+  if (profile.coSupervisor) {
+    profile.coSupervisor = await resolveFacultyDoc(profile.coSupervisor);
+  }
+  if (profile.srcCommittee && Array.isArray((profile.srcCommittee as any).members)) {
+    const committee = profile.srcCommittee as any;
+    for (const member of committee.members) {
+      member.faculty = await resolveFacultyDoc(member.faculty);
+    }
   }
 
   const semesterDocs = await Semester.find({ student: profile._id }).select('semesterNumber').lean();
