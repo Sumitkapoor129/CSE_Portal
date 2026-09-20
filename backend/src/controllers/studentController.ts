@@ -294,8 +294,33 @@ export const getCourses = asyncHandler(async (req: AuthRequest, res: Response) =
     throw new AppError('Semester not found', 404);
   }
 
-  const courses = await Course.find({ semester: semester._id }).lean();
+  const studentCourses = await StudentCourse.find({
+    student: profile._id,
+    semester: semester._id,
+  })
+    .populate('course')
+    .lean();
 
+  if (studentCourses.length > 0) {
+    const mapped = studentCourses.map((sc: any) => {
+      const c = sc.course && typeof sc.course === 'object' ? sc.course : {};
+      return {
+        ...c,
+        _id: c._id || sc._id,
+        courseCode: c.courseCode,
+        courseName: c.courseName,
+        credits: c.credits,
+        status: sc.status,
+        grade: sc.grade,
+        supervisorComment: sc.supervisorComment,
+        approvedAt: sc.approvedAt,
+      };
+    });
+    res.status(200).json({ success: true, data: mapped });
+    return;
+  }
+
+  const courses = await Course.find({ semester: semester._id }).lean();
   res.status(200).json({ success: true, data: courses });
 });
 

@@ -42,9 +42,12 @@ export const resolveParticipants = async (ids: string[]) => {
 };
 
 export const getEligibleStudentOptions = async (supervisorUserId: string) => {
-  const facultyProfile = await FacultyProfile.findOne({
-    user: new mongoose.Types.ObjectId(supervisorUserId),
+  let facultyProfile = await FacultyProfile.findOne({
+    user: supervisorUserId,
   }).lean();
+  if (!facultyProfile && mongoose.isValidObjectId(supervisorUserId)) {
+    facultyProfile = await FacultyProfile.findById(supervisorUserId).lean();
+  }
 
   const studentOptions: Array<{
     userId: string;
@@ -60,24 +63,37 @@ export const getEligibleStudentOptions = async (supervisorUserId: string) => {
   }
 
   const assignments = await Supervisor.find({
-    supervisor: facultyProfile._id,
+    $or: [
+      { supervisor: facultyProfile._id },
+      { coSupervisor: facultyProfile._id },
+    ],
     isActive: true,
   })
     .select('student')
     .lean();
 
-  for (const assignment of assignments) {
-    const profile = await StudentProfile.findById(assignment.student)
-      .populate('user', 'name email')
-      .lean();
+  const assignedStudentIds = assignments.map((a) => a.student);
 
-    if (!profile) continue;
+  const profiles = await StudentProfile.find({
+    $or: [
+      { _id: { $in: assignedStudentIds } },
+      { supervisor: facultyProfile._id },
+      { coSupervisor: facultyProfile._id },
+    ],
+  })
+    .populate('user', 'name email')
+    .lean();
 
+  const seenUsers = new Set<string>();
+  for (const profile of profiles) {
     const user = profile.user as unknown as { _id: string; name?: string } | null;
     if (!user || !user._id) continue;
+    const uid = String(user._id);
+    if (seenUsers.has(uid)) continue;
+    seenUsers.add(uid);
 
     studentOptions.push({
-      userId: String(user._id),
+      userId: uid,
       profileId: String(profile._id),
       name: user.name || '',
       rollNumber: profile.rollNumber,
@@ -93,3 +109,24 @@ export const getAssignedStudentUserIds = async (supervisorUserId: string): Promi
   const options = await getEligibleStudentOptions(supervisorUserId);
   return new Set(options.map(o => o.userId));
 };
+
+export const parseEventDateTime = (dateVal: string | Date, timeVal: string | Date): Date => {
+  if (timeVal instanceof Date && !isNaN(timeVal.getTime())) return timeVal;
+  const timeStr = String(timeVal || '').trim();
+  if (timeStr.includes('T')) {
+    const d = new Date(timeStr);
+    if (!isNaN(d.getTime())) return d;
+  }
+  const dateBase = dateVal instanceof Date ? new Date(dateVal.getTime()) : new Date(dateVal);
+  const match = timeStr.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+  if (match) {
+    const hours = parseInt(match[1], 10);
+    const minutes = parseInt(match[2], 10);
+    const seconds = match[3] ? parseInt(match[3], 10) : 0;
+    dateBase.setHours(hours, minutes, seconds, 0);
+    return dateBase;
+  }
+  const fallback = new Date(timeStr);
+  return isNaN(fallback.getTime()) ? dateBase : fallback;
+};
+

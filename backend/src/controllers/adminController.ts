@@ -16,7 +16,7 @@ import { UserRole, AuthRequest, ApprovalStatus, SRCMemberRole } from '../types';
 import { paginate } from '../utils/pagination';
 import { Milestone } from '../models/Milestone';
 import { seedMilestones, updateMilestone as updateMilestoneService } from '../services/milestoneService';
-import { resolveParticipants } from '../utils/participants';
+import { resolveParticipants, parseEventDateTime } from '../utils/participants';
 import { sendNotificationEmail } from '../utils/email';
 import { escapeRegex } from '../utils/query';
 
@@ -673,15 +673,23 @@ export const createEvent = asyncHandler(async (req: AuthRequest, res: Response) 
     throw new AppError('title, eventType, date, startTime, and endTime are required', 400);
   }
 
+  const eventDate = new Date(date);
+  if (isNaN(eventDate.getTime())) {
+    throw new AppError('Invalid event date', 400);
+  }
+
+  const parsedStartTime = parseEventDateTime(eventDate, startTime);
+  const parsedEndTime = parseEventDateTime(eventDate, endTime);
+
   const { userIds, participantDocs } = await resolveParticipants(Array.isArray(participants) ? participants : []);
 
   const event = await Event.create({
     title,
     eventType,
     description: description || '',
-    date,
-    startTime,
-    endTime,
+    date: eventDate,
+    startTime: parsedStartTime,
+    endTime: parsedEndTime,
     location: location || '',
     organizer: req.user!.id,
     organizerModel: 'User',
@@ -690,7 +698,7 @@ export const createEvent = asyncHandler(async (req: AuthRequest, res: Response) 
   });
 
   if (userIds.length) {
-    const eventMessage = `You have been invited to "${title}" on ${new Date(date).toLocaleDateString()}.`;
+    const eventMessage = `You have been invited to "${title}" on ${eventDate.toLocaleDateString()}.`;
     await createBulkNotifications(userIds, { title: 'New Event: ' + title, message: eventMessage, type: 'event_invitation', link: '/student/events' });
 
     const participantUsers = await User.find({ _id: { $in: userIds } }).select('email').lean();
@@ -702,7 +710,7 @@ export const createEvent = asyncHandler(async (req: AuthRequest, res: Response) 
     action: 'CREATE_EVENT',
     entity: 'Event',
     entityId: event._id.toString(),
-    newValue: { title, eventType, date } as Record<string, unknown>,
+    newValue: { title, eventType, date: eventDate } as Record<string, unknown>,
   });
 
   res.status(201).json({ success: true, data: event });
@@ -718,10 +726,18 @@ export const updateEvent = asyncHandler(async (req: AuthRequest, res: Response) 
 
   const previousValue = event.toObject() as unknown as Record<string, unknown>;
 
+  const baseDate = req.body.date ? new Date(req.body.date) : event.date;
+
   const allowedFields = ['title', 'eventType', 'description', 'date', 'startTime', 'endTime', 'location', 'participants', 'deadline', 'eligibilityRules'];
   for (const field of allowedFields) {
     if (req.body[field] !== undefined) {
-      (event as unknown as Record<string, unknown>)[field] = req.body[field];
+      if (field === 'startTime' || field === 'endTime') {
+        (event as unknown as Record<string, unknown>)[field] = parseEventDateTime(baseDate, req.body[field]);
+      } else if (field === 'date') {
+        (event as unknown as Record<string, unknown>)[field] = new Date(req.body[field]);
+      } else {
+        (event as unknown as Record<string, unknown>)[field] = req.body[field];
+      }
     }
   }
   await event.save();

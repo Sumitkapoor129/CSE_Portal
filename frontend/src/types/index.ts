@@ -120,6 +120,7 @@ export interface Course {
   credits: number;
   grade?: string;
   status: ApprovalStatus;
+  supervisorComment?: string;
 }
 
 export interface StudentCourse {
