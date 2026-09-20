@@ -45,6 +45,11 @@ const emptyForm: OnboardingForm = {
 const GENDER_OPTIONS = [{ value: '', label: 'Select gender' }, { value: 'Female', label: 'Female' }, { value: 'Male', label: 'Male' }, { value: 'Other', label: 'Other' }];
 const BLOOD_GROUP_OPTIONS = [{ value: '', label: 'Select blood group' }, { value: 'A+', label: 'A+' }, { value: 'A-', label: 'A-' }, { value: 'B+', label: 'B+' }, { value: 'B-', label: 'B-' }, { value: 'AB+', label: 'AB+' }, { value: 'AB-', label: 'AB-' }, { value: 'O+', label: 'O+' }, { value: 'O-', label: 'O-' }];
 const CATEGORY_OPTIONS = [{ value: '', label: 'Select category' }, { value: 'General', label: 'General' }, { value: 'OBC', label: 'OBC' }, { value: 'SC', label: 'SC' }, { value: 'ST', label: 'ST' }, { value: 'EWS', label: 'EWS' }];
+const LAST_DEGREE_OPTIONS = [
+  { value: '', label: 'Select qualifying last degree' },
+  { value: 'B.Tech', label: 'B.Tech (Direct PhD Admission — 20 Credits)' },
+  { value: 'M.Tech', label: 'M.Tech (Post-Master Admission — 12 Credits)' },
+];
 
 export function StudentOnboarding(): JSX.Element {
   const navigate = useNavigate();
@@ -59,7 +64,13 @@ export function StudentOnboarding(): JSX.Element {
 
   const setField = (field: keyof OnboardingForm) => (event: { target: { value: string } }) => {
     setForm((prev) => ({ ...prev, [field]: event.target.value }));
-    if (errors[field]) setErrors((prev) => ({ ...prev, [field]: '' }));
+    if (errors[field]) {
+      setErrors((prev) => {
+        const copy = { ...prev };
+        delete copy[field];
+        return copy;
+      });
+    }
     if (serverError) setServerError(null);
   };
 
@@ -79,7 +90,7 @@ export function StudentOnboarding(): JSX.Element {
         next.graduationYear = 'Enter a valid graduation year.';
       }
     } else {
-      if (!form.phone) next.phone = 'Phone number is required.';
+      if (!form.phone || !form.phone.trim()) next.phone = 'Mobile number is required.';
     }
     setErrors(next);
     return Object.keys(next).length === 0;
@@ -87,12 +98,14 @@ export function StudentOnboarding(): JSX.Element {
 
   const handleNext = () => {
     if (stepValid()) {
+      setErrors({});
       setStep((prev) => Math.min(prev + 1, STEPS.length - 1));
       stepHeadingRef.current?.focus();
     }
   };
 
   const handleBack = () => {
+    setErrors({});
     if (step === 0) {
       navigate('/student');
       return;
@@ -101,12 +114,20 @@ export function StudentOnboarding(): JSX.Element {
     stepHeadingRef.current?.focus();
   };
 
+  const handleFormKeyDown = (event: React.KeyboardEvent<HTMLFormElement>) => {
+    if (event.key === 'Enter' && step < STEPS.length - 1) {
+      event.preventDefault();
+      handleNext();
+    }
+  };
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (submitting || !stepValid()) return;
     setSubmitting(true);
     setServerError(null);
     try {
+      const assignedCredits = form.lastDegree === 'B.Tech' ? 20 : 12;
       await studentApi.updateProfile({
         profilePhoto: form.profilePhoto.trim() || undefined,
         dateOfBirth: form.dateOfBirth,
@@ -114,6 +135,7 @@ export function StudentOnboarding(): JSX.Element {
         bloodGroup: form.bloodGroup,
         category: form.category,
         lastDegree: form.lastDegree,
+        requiredCredits: assignedCredits,
         institution: form.institution,
         graduationYear: Number(form.graduationYear),
         qualification: form.qualification.trim() || undefined,
@@ -135,7 +157,6 @@ export function StudentOnboarding(): JSX.Element {
       { label: 'Profile Photo URL', id: 'ob-photo', field: 'profilePhoto', placeholder: 'https://example.com/photo.jpg' },
     ],
     1: [
-      { label: 'Last Degree', id: 'ob-degree', field: 'lastDegree', placeholder: 'e.g. M.Tech' },
       { label: 'Institution', id: 'ob-institution', field: 'institution', placeholder: 'e.g. NIT Jamshedpur' },
       { label: 'Graduation Year', id: 'ob-year', field: 'graduationYear', placeholder: 'e.g. 2022' },
       { label: 'Qualification / Score', id: 'ob-qual', field: 'qualification', placeholder: 'e.g. CGPA 9.2' },
@@ -181,7 +202,7 @@ export function StudentOnboarding(): JSX.Element {
           {STEPS[step]}
         </h2>
 
-        <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+        <form onSubmit={handleSubmit} onKeyDown={handleFormKeyDown} className="space-y-4" noValidate>
           {serverError && <Alert variant="error">{serverError}</Alert>}
 
           {step === 0 && (
@@ -195,10 +216,36 @@ export function StudentOnboarding(): JSX.Element {
           )}
 
           {step === 1 && (
-            <div className="grid gap-4 sm:grid-cols-2">
-              {stepFields[1].map(({ label, id, field, placeholder, type, autoComplete }) => (
-                <Input key={id} id={id} label={label} type={type} autoComplete={autoComplete} value={String(form[field])} onChange={setField(field)} error={errors[field]} placeholder={placeholder} />
-              ))}
+            <div className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="sm:col-span-2">
+                  <Select
+                    id="ob-degree"
+                    label="Last Degree (Qualifying Degree)"
+                    value={form.lastDegree}
+                    onChange={setField('lastDegree')}
+                    error={errors.lastDegree}
+                    options={LAST_DEGREE_OPTIONS}
+                  />
+                  {form.lastDegree && (
+                    <div className="mt-2 rounded-md border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900">
+                      <p className="font-semibold">
+                        {form.lastDegree === 'B.Tech'
+                          ? '🎓 B.Tech Candidate: 20 Coursework Credits Assigned'
+                          : '🎓 M.Tech Candidate: 12 Coursework Credits Assigned'}
+                      </p>
+                      <p className="mt-0.5 text-blue-700">
+                        {form.lastDegree === 'B.Tech'
+                          ? 'Per NIT Jamshedpur PhD Regulations, direct admission candidates with a B.Tech require 20 credits.'
+                          : 'Per NIT Jamshedpur PhD Regulations, candidates admitted with a Master’s degree (M.Tech) require 12 credits.'}
+                      </p>
+                    </div>
+                  )}
+                </div>
+                {stepFields[1].map(({ label, id, field, placeholder, type, autoComplete }) => (
+                  <Input key={id} id={id} label={label} type={type} autoComplete={autoComplete} value={String(form[field])} onChange={setField(field)} error={errors[field]} placeholder={placeholder} />
+                ))}
+              </div>
             </div>
           )}
 

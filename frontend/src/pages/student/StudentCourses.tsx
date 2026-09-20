@@ -8,7 +8,7 @@ import { PageHeader } from '../../components/shared/PageHeader';
 import { QueryError } from '../../components/shared/QueryError';
 import { Alert } from '../../components/ui/Alert';
 import { Badge } from '../../components/ui/Badge';
-import { Button, ButtonLink } from '../../components/ui/Button';
+import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { Input } from '../../components/ui/Input';
@@ -138,9 +138,11 @@ export function StudentCourses(): JSX.Element {
         title="Courses"
         description="Manage your semesters and course registrations."
         actions={
-          <Button onClick={openSemesterModal} variant="secondary">
-            Add Semester
-          </Button>
+          profile?.supervisor ? (
+            <Button onClick={openSemesterModal} variant="secondary">
+              Add Semester
+            </Button>
+          ) : undefined
         }
       />
       {loading && (
@@ -151,17 +153,25 @@ export function StudentCourses(): JSX.Element {
       )}
       {error && !loading && <QueryError error={error} onRetry={retryAll} />}
       {!loading && !error && profile && !profile.supervisor && (
-        <Alert variant="info">A supervisor must be assigned before you can request courses.</Alert>
+        <Alert variant="info">
+          Awaiting supervisor assignment. A supervisor must be assigned by the department before you can register semesters or courses.
+        </Alert>
       )}
       {!loading && !error && semesterList.length === 0 && (
         <Card padded={false}>
           <EmptyState
-            title="No semesters yet"
-            message="Add your first semester to start recording courses."
+            title={profile?.supervisor ? 'No semesters yet' : 'Awaiting Supervisor Assignment'}
+            message={
+              profile?.supervisor
+                ? 'Add your first semester to start registering courses.'
+                : 'A supervisor must be assigned by the department before you can register semesters or request courses.'
+            }
             action={
-              <ButtonLink to="/student/onboarding" variant="primary" size="sm">
-                Add Semester
-              </ButtonLink>
+              profile?.supervisor ? (
+                <Button onClick={openSemesterModal} variant="primary" size="sm">
+                  Add Semester
+                </Button>
+              ) : undefined
             }
           />
         </Card>

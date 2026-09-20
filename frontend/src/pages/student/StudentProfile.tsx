@@ -92,6 +92,7 @@ export function StudentProfile(): JSX.Element {
               <DetailRow label="Department" value={data.department} />
               <DetailRow label="Research Area" value={data.researchArea || '—'} />
               <DetailRow label="Admission Date" value={formatDate(data.admissionDate)} />
+              <DetailRow label="Last Degree" value={data.lastDegree || '—'} />
               <DetailRow label="Required Credits" value={data.requiredCredits} />
               <DetailRow label="Supervisor" value={formatFaculty(data.supervisor)} />
               <DetailRow label="Co-supervisor" value={formatFaculty(data.coSupervisor)} />

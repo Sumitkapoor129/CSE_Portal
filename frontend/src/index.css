@@ -7,4 +7,10 @@
   :focus-visible {
     @apply outline-2 outline-offset-2 outline-blue-600;
   }
+  /* Suppress default browser password reveal/clear buttons (Edge/IE) to avoid duplicate eye icons */
+  input::-ms-reveal,
+  input::-ms-clear {
+    display: none;
+  }
 }
+

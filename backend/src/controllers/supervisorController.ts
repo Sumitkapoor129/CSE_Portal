@@ -158,8 +158,16 @@ export const getStudentDetail = asyncHandler(async (req: AuthRequest, res: Respo
 
   const studentProfile = await StudentProfile.findById(studentId)
     .populate('user', 'name email role isActive')
-    .populate('supervisor', 'employeeId department designation')
-    .populate('coSupervisor', 'employeeId department designation')
+    .populate({
+      path: 'supervisor',
+      select: 'employeeId department designation user profilePhoto',
+      populate: { path: 'user', select: 'name email' },
+    })
+    .populate({
+      path: 'coSupervisor',
+      select: 'employeeId department designation user profilePhoto',
+      populate: { path: 'user', select: 'name email' },
+    })
     .lean();
 
   if (!studentProfile) {
@@ -190,7 +198,11 @@ export const getStudentDetail = asyncHandler(async (req: AuthRequest, res: Respo
       .sort({ version: -1 })
       .lean(),
     SRCCommittee.findOne({ student: studentId })
-      .populate('members.faculty', 'employeeId department designation')
+      .populate({
+        path: 'members.faculty',
+        select: 'employeeId department designation user profilePhoto',
+        populate: { path: 'user', select: 'name email' },
+      })
       .lean(),
   ]);
 

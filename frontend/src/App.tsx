@@ -118,6 +118,7 @@ export default function App() {
                     <Route path="documents" element={<StudentDocuments />} />
                     <Route path="notifications" element={<StudentNotifications />} />
                     <Route path="complete-profile" element={<StudentOnboarding />} />
+                    <Route path="onboarding" element={<Navigate to="/student/complete-profile" replace />} />
                   </Route>
                   <Route path="/supervisor" element={<ProtectedRoute roles={['supervisor']} />}>
                     <Route index element={<SupervisorDashboard />} />
