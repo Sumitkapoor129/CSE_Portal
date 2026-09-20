@@ -19,8 +19,16 @@ import { SkeletonTable } from '../../components/ui/Skeleton';
 import { Table, TableCell, TableEmpty, TableRow } from '../../components/ui/Table';
 import { ConfirmModal } from '../../components/shared/ConfirmModal';
 import { QueryError } from '../../components/shared/QueryError';
-import { ACTIVE_STATUS_STYLE, INACTIVE_STATUS_STYLE, STUDENT_TYPE_LABELS, STUDENT_TYPE_OPTIONS } from '../../utils/constants';
-import type { StudentProfileView, StudentType } from '../../types';
+import { formatDate } from '../../utils/formatDate';
+import {
+  ACTIVE_STATUS_STYLE,
+  INACTIVE_STATUS_STYLE,
+  MILESTONE_STATUS_LABELS,
+  MILESTONE_STATUS_STYLE,
+  STUDENT_TYPE_LABELS,
+  STUDENT_TYPE_OPTIONS,
+} from '../../utils/constants';
+import type { Milestone, MilestoneStatus, StudentProfileView, StudentType } from '../../types';
 
 const EMPTY_CREATE_FORM = {
   email: '',
@@ -72,6 +80,13 @@ export function StudentManagement(): JSX.Element {
   const [toggling, setToggling] = useState(false);
   const [toggleError, setToggleError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  const [milestonesStudent, setMilestonesStudent] = useState<StudentProfileView | null>(null);
+  const [studentMilestones, setStudentMilestones] = useState<Milestone[]>([]);
+  const [milestonesLoading, setMilestonesLoading] = useState(false);
+  const [milestonesError, setMilestonesError] = useState<string | null>(null);
+  const [updatingMilestoneId, setUpdatingMilestoneId] = useState<string | null>(null);
+  const [milestoneActionError, setMilestoneActionError] = useState<string | null>(null);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -237,6 +252,47 @@ export function StudentManagement(): JSX.Element {
     }
   };
 
+  const openMilestones = async (student: StudentProfileView) => {
+    setMilestonesStudent(student);
+    setStudentMilestones([]);
+    setMilestonesError(null);
+    setMilestoneActionError(null);
+    setMilestonesLoading(true);
+    try {
+      const data = await adminApi.getStudentMilestones(student._id);
+      setStudentMilestones(data);
+    } catch (err) {
+      setMilestonesError(err instanceof Error ? err.message : 'Failed to load scholar milestones.');
+    } finally {
+      setMilestonesLoading(false);
+    }
+  };
+
+  const closeMilestones = () => {
+    setMilestonesStudent(null);
+    setStudentMilestones([]);
+    setMilestonesError(null);
+    setMilestoneActionError(null);
+    setUpdatingMilestoneId(null);
+  };
+
+  const handleUpdateMilestoneStatus = async (milestoneId: string, status: MilestoneStatus) => {
+    setUpdatingMilestoneId(milestoneId);
+    setMilestoneActionError(null);
+    try {
+      const updated = await adminApi.updateMilestone(milestoneId, { status });
+      setStudentMilestones((prev) =>
+        prev.map((m) => (m._id === milestoneId ? { ...m, ...updated } : m))
+      );
+      const label = status === 'completed' ? 'Approved' : status === 'rejected' ? 'Rejected' : status;
+      setSuccessMessage(`Milestone updated to ${label}.`);
+    } catch (err) {
+      setMilestoneActionError(err instanceof Error ? err.message : 'Failed to update milestone status.');
+    } finally {
+      setUpdatingMilestoneId(null);
+    }
+  };
+
   return (
     <>
       <PageHeader
@@ -334,6 +390,9 @@ export function StudentManagement(): JSX.Element {
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
+                      <Button variant="secondary" size="sm" onClick={() => openMilestones(student)}>
+                        Milestones
+                      </Button>
                       <Button variant="secondary" size="sm" onClick={() => openEdit(student)}>
                         Edit
                       </Button>
@@ -535,6 +594,94 @@ export function StudentManagement(): JSX.Element {
         error={toggleError ?? undefined}
         onConfirm={handleToggle}
       />
+
+      <Modal
+        open={milestonesStudent !== null}
+        onClose={closeMilestones}
+        title={milestonesStudent ? `PhD Milestones — ${milestonesStudent.user?.name ?? 'Scholar'}` : 'PhD Milestones'}
+        maxWidth="xl"
+      >
+        <div className="space-y-4">
+          {milestonesStudent && (
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 pb-3 text-xs text-gray-500">
+              <span>Roll No: <strong className="text-gray-700">{milestonesStudent.rollNumber}</strong></span>
+              <span>College ID: <strong className="text-gray-700">{milestonesStudent.collegeId}</strong></span>
+              <span>Type: <strong className="text-gray-700">{STUDENT_TYPE_LABELS[milestonesStudent.studentType]}</strong></span>
+            </div>
+          )}
+
+          {milestoneActionError && <Alert variant="error">{milestoneActionError}</Alert>}
+          {milestonesError && <Alert variant="error">{milestonesError}</Alert>}
+
+          {milestonesLoading ? (
+            <div className="py-8 text-center text-sm text-gray-500">Loading scholar milestones…</div>
+          ) : studentMilestones.length === 0 && !milestonesError ? (
+            <div className="py-8 text-center text-sm text-gray-500">No milestones found for this scholar.</div>
+          ) : (
+            <ul className="divide-y divide-gray-100 max-h-[60vh] overflow-y-auto pr-1">
+              {studentMilestones.map((milestone) => (
+                <li key={milestone._id} className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gray-100 text-xs font-medium text-gray-700">
+                    {milestone.order}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium text-gray-900">{milestone.title}</p>
+                      <Badge
+                        label={MILESTONE_STATUS_LABELS[milestone.status] ?? milestone.status}
+                        className={MILESTONE_STATUS_STYLE[milestone.status]}
+                      />
+                    </div>
+                    {milestone.description && (
+                      <p className="mt-0.5 text-xs text-gray-500">{milestone.description}</p>
+                    )}
+                    <div className="mt-1 flex flex-wrap gap-3 text-xs text-gray-400">
+                      {milestone.dueDate && <span>Due: {formatDate(milestone.dueDate)}</span>}
+                      {milestone.completedAt && (
+                        <span className="text-emerald-600">Completed: {formatDate(milestone.completedAt)}</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <Button
+                      variant={milestone.status === 'completed' ? 'secondary' : 'primary'}
+                      size="sm"
+                      disabled={updatingMilestoneId === milestone._id || milestone.status === 'completed'}
+                      onClick={() => handleUpdateMilestoneStatus(milestone._id, 'completed')}
+                    >
+                      {updatingMilestoneId === milestone._id ? 'Updating…' : milestone.status === 'completed' ? 'Approved' : 'Approve'}
+                    </Button>
+                    <Button
+                      variant={milestone.status === 'rejected' ? 'secondary' : 'danger'}
+                      size="sm"
+                      disabled={updatingMilestoneId === milestone._id || milestone.status === 'rejected'}
+                      onClick={() => handleUpdateMilestoneStatus(milestone._id, 'rejected')}
+                    >
+                      {milestone.status === 'rejected' ? 'Rejected' : 'Reject'}
+                    </Button>
+                    {milestone.status !== 'pending' && milestone.status !== 'in_progress' && (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        disabled={updatingMilestoneId === milestone._id}
+                        onClick={() => handleUpdateMilestoneStatus(milestone._id, 'in_progress')}
+                      >
+                        Reset
+                      </Button>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <div className="flex justify-end border-t border-gray-100 pt-3">
+            <Button variant="secondary" onClick={closeMilestones}>
+              Close
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </>
   );
 }

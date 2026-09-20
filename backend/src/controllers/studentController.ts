@@ -517,7 +517,7 @@ export const getTimeline = asyncHandler(async (req: AuthRequest, res: Response) 
   }));
 
   const evaluationEvents = await StudentCourse.aggregate([
-    { $match: { student: profile._id } },
+    { $match: { student: profile._id, status: { $ne: 'rejected' } } },
     {
       $lookup: {
         from: 'courses',

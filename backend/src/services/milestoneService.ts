@@ -66,7 +66,7 @@ export const updateMilestone = async (
   }
 
   if (updates.dueDate !== undefined) {
-    milestone.dueDate = updates.dueDate;
+    milestone.dueDate = updates.dueDate ? new Date(updates.dueDate) : undefined;
   }
   if (updates.title !== undefined) {
     milestone.title = updates.title;

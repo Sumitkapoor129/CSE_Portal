@@ -4,7 +4,7 @@ export type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'resubmission
 export type ThesisStatus = 'draft' | 'submitted' | 'under_review' | 'approved' | 'rejected' | 'resubmission_required';
 export type EventType = 'seminar' | 'comprehensive_exam' | 'progress_review' | 'thesis_defense' | 'course_registration' | 'other';
 export type SRCMemberRole = 'chairperson' | 'supervisor' | 'co_supervisor' | 'member';
-export type MilestoneStatus = 'pending' | 'in_progress' | 'completed' | 'skipped';
+export type MilestoneStatus = 'pending' | 'in_progress' | 'completed' | 'skipped' | 'rejected';
 export type MilestoneKey =
   | 'admission' | 'src_formed' | 'course_work' | 'comprehensive_exam' | 'topic_registration'
   | 'enhancement_seminar' | 'pre_submission' | 'thesis_submitted' | 'thesis_approved' | 'defense' | 'degree_awarded';

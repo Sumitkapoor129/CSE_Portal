@@ -23,6 +23,7 @@ import {
   listDeadlines,
   createDeadline,
   globalSearch,
+  getStudentMilestones,
   updateMilestone,
 } from '../controllers/adminController';
 import { downloadTemplate, bulkImport, upload } from '../controllers/bulkImportController';
@@ -37,6 +38,7 @@ router.get('/dashboard', getDashboard);
 
 router.post('/students', createStudent);
 router.get('/students', listStudents);
+router.get('/students/:id/milestones', getStudentMilestones);
 router.put('/students/:id', updateStudent);
 router.put('/students/:id/toggle-active', toggleStudentActive);
 
