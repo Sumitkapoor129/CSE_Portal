@@ -579,10 +579,10 @@ export const approveRequest = asyncHandler(async (req: AuthRequest, res: Respons
 });
 
 export const createEvent = asyncHandler(async (req: AuthRequest, res: Response) => {
-  const { title, eventType, description, date, startTime, endTime, location, participants, semester, deadline, eligibilityRules } = req.body;
+  const { title, eventType, customEventType, description, date, startTime, endTime, location, participants, semester, deadline, eligibilityRules } = req.body;
 
-  if (!title || !eventType || !date || !startTime || !endTime) {
-    throw new AppError('Title, event type, date, start time, and end time are required', 400);
+  if (!title || !eventType || !date || !startTime) {
+    throw new AppError('Title, event type, date, and start time are required', 400);
   }
 
   const eventDate = new Date(date);
@@ -591,7 +591,7 @@ export const createEvent = asyncHandler(async (req: AuthRequest, res: Response) 
   }
 
   const parsedStartTime = parseEventDateTime(eventDate, startTime);
-  const parsedEndTime = parseEventDateTime(eventDate, endTime);
+  const parsedEndTime = endTime ? parseEventDateTime(eventDate, endTime) : undefined;
 
   const { userIds, participantDocs } = await resolveParticipants(Array.isArray(participants) ? participants : []);
 
@@ -628,6 +628,7 @@ export const createEvent = asyncHandler(async (req: AuthRequest, res: Response) 
   const event = await Event.create({
     title,
     eventType,
+    customEventType: customEventType || undefined,
     description: description || '',
     date: eventDate,
     startTime: parsedStartTime,

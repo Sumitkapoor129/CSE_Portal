@@ -3,6 +3,8 @@ import { User } from '../models/User';
 import { StudentProfile } from '../models/StudentProfile';
 import { Supervisor } from '../models/Supervisor';
 import { FacultyProfile } from '../models/FacultyProfile';
+import { Milestone } from '../models/Milestone';
+import { MilestoneStatus } from '../types';
 
 export const resolveUserIds = async (ids: string[]): Promise<string[]> => {
   const filtered = ids.filter(Boolean);
@@ -56,6 +58,8 @@ export const getEligibleStudentOptions = async (supervisorUserId: string) => {
     rollNumber: string;
     department: string;
     studentType: string;
+    program?: string;
+    completedMilestones?: string[];
   }> = [];
 
   if (!facultyProfile) {
@@ -84,6 +88,21 @@ export const getEligibleStudentOptions = async (supervisorUserId: string) => {
     .populate('user', 'name email')
     .lean();
 
+    const profileIds = profiles.map((p) => p._id);
+  const completedMilestones = await Milestone.find({
+    student: { $in: profileIds },
+    status: MilestoneStatus.COMPLETED,
+  })
+    .select('student key')
+    .lean();
+
+  const completedMap = new Map<string, string[]>();
+  for (const m of completedMilestones) {
+    const sId = String(m.student);
+    if (!completedMap.has(sId)) completedMap.set(sId, []);
+    completedMap.get(sId)!.push(m.key);
+  }
+
   const seenUsers = new Set<string>();
   for (const profile of profiles) {
     const user = profile.user as unknown as { _id: string; name?: string } | null;
@@ -99,6 +118,8 @@ export const getEligibleStudentOptions = async (supervisorUserId: string) => {
       rollNumber: profile.rollNumber,
       department: profile.department,
       studentType: profile.studentType,
+      program: (profile as any).program || 'phd',
+      completedMilestones: completedMap.get(String(profile._id)) || [],
     });
   }
 

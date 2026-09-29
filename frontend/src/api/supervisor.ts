@@ -4,6 +4,7 @@ import type {
   ApprovalRequestView,
   ComprehensiveExam,
   ComprehensiveExamResult,
+  CreateEventPayload,
   EventView,
   Internship,
   Pagination,
@@ -17,6 +18,8 @@ import type {
   SupervisorStudentDetail,
   Thesis,
 } from '../types';
+
+export type { CreateEventPayload, SupervisorEventPayload };
 
 export const supervisorApi = {
   getDashboard: (opts?: ApiOpts) => apiFetch<SupervisorDashboardData>('/supervisor/dashboard', { signal: opts?.signal }),
@@ -63,7 +66,7 @@ export const supervisorApi = {
   approveRequest: (requestId: string, payload: { status: 'approved' | 'rejected'; comment?: string }) =>
     apiFetch<{ message: string; approvalRequest: ApprovalRequestView }>(`/supervisor/approvals/${requestId}/approve`, { method: 'PUT', body: payload }),
   getPendingApprovals: (opts?: ApiOpts) => apiFetch<PendingApprovals>('/supervisor/approvals/pending', { signal: opts?.signal }),
-  createEvent: (payload: SupervisorEventPayload) =>
+  createEvent: (payload: CreateEventPayload) =>
     apiFetch<EventView>('/supervisor/events', { method: 'POST', body: payload }),
   getEvents: (params: { page?: number; limit?: number; eventType?: string } = {}, opts?: ApiOpts) =>
     apiFetch<{ events: EventView[]; pagination: Pagination }>('/supervisor/events', { query: params, signal: opts?.signal }),

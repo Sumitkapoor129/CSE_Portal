@@ -176,7 +176,22 @@ Key field notes:
   - Student detail page renames "Academics" tab to "Course Work".
   - Dedicated "Milestones" tab displays the full 12-milestone PhD journey timeline with due dates and statuses.
   - Documents tab defaults to most recent documents first and provides a Semester filter dropdown.
+- **Faculty Event Creation Improvements**:
+  - **Student-First Selection**: Faculty chooses a single scholar first (`[Name] ([Roll Number] - [Program/Type])`).
+  - **Dynamic Event Type Filtering**: Candidate event types dynamically adapt to the chosen scholar:
+    - `progress_seminar`: Progress Seminar (always available).
+    - `comprehensive_exam`: Comprehensive Exam (hidden if scholar has completed comprehensive exam milestone).
+    - `topic_registration`: Topic Registration (hidden if scholar has completed topic registration milestone).
+    - `enhancement_seminar`: Enhancement Seminar (only shown for full-time FRP scholars who have not completed it).
+    - `pre_submission`: Pre-Submission (hidden if scholar has completed pre-submission milestone).
+    - `open_defence`: Open Defence (hidden if scholar has completed defense milestone).
+    - `other`: Others (always available).
+  - **Custom Event Type**: Selecting "Others" displays an accessible "Custom Event Type" text input so faculty can specify custom events.
+  - **Removed Fields**: End time and deadline fields completely removed from the event creation modal.
+  - **Table Custom Badges**: Displays custom event type directly in the event type badge (`Others: ${customEventType}`).
+  - **Backend Support**: `Event` model updated with `customEventType` and optional `endTime`. `getEligibleStudentOptions` populates `completedMilestones` and `program`.
 - **Testing & Verification**:
-  - Backend: 17 test suites, 90 tests passing (`npm test`).
+  - Backend: 18 test suites, 93 tests passing (`npm test`).
+  - Frontend: 9 test suites, 36 tests passing (`npm test`).
   - Typecheck: Zero errors across backend (`tsc --noEmit`) and frontend (`tsc -b`).
   - Production builds: Both backend (`npm run build`) and frontend (`vite build`) build cleanly.

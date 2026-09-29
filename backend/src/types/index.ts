@@ -30,12 +30,17 @@ export enum ThesisStatus {
 }
 
 export enum EventType {
-  SEMINAR = 'seminar',
+  PROGRESS_SEMINAR = 'progress_seminar',
   COMPREHENSIVE_EXAM = 'comprehensive_exam',
+  TOPIC_REGISTRATION = 'topic_registration',
+  ENHANCEMENT_SEMINAR = 'enhancement_seminar',
+  PRE_SUBMISSION = 'pre_submission',
+  OPEN_DEFENSE = 'open_defence',
+  OTHER = 'other',
+  SEMINAR = 'seminar',
   PROGRESS_REVIEW = 'progress_review',
   THESIS_DEFENSE = 'thesis_defense',
   COURSE_REGISTRATION = 'course_registration',
-  OTHER = 'other',
 }
 
 export enum SRCMemberRole {
@@ -219,10 +224,11 @@ export interface ISRCMember {
 export interface IEvent {
   title: string;
   eventType: EventType;
+  customEventType?: string;
   description: string;
   date: Date;
   startTime: Date;
-  endTime: Date;
+  endTime?: Date;
   location: string;
   organizer: string;
   organizerModel: 'User';

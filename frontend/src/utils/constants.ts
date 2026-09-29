@@ -52,20 +52,26 @@ export const THESIS_STATUS_LABELS: Record<ThesisStatus, string> = {
 };
 
 export const EVENT_TYPE_LABELS: Record<EventType, string> = {
-  seminar: 'Seminar',
+  progress_seminar: 'Progress Seminar',
   comprehensive_exam: 'Comprehensive Exam',
+  topic_registration: 'Topic Registration',
+  enhancement_seminar: 'Enhancement Seminar',
+  pre_submission: 'Pre-Submission',
+  open_defence: 'Open Defence',
+  other: 'Others',
+  seminar: 'Seminar',
   progress_review: 'Progress Review',
   thesis_defense: 'Thesis Defense',
   course_registration: 'Course Registration',
-  other: 'Other',
 };
 
 export const EVENT_TYPE_OPTIONS: { value: EventType; label: string }[] = [
-  { value: 'seminar', label: EVENT_TYPE_LABELS.seminar },
+  { value: 'progress_seminar', label: EVENT_TYPE_LABELS.progress_seminar },
   { value: 'comprehensive_exam', label: EVENT_TYPE_LABELS.comprehensive_exam },
-  { value: 'progress_review', label: EVENT_TYPE_LABELS.progress_review },
-  { value: 'thesis_defense', label: EVENT_TYPE_LABELS.thesis_defense },
-  { value: 'course_registration', label: EVENT_TYPE_LABELS.course_registration },
+  { value: 'topic_registration', label: EVENT_TYPE_LABELS.topic_registration },
+  { value: 'enhancement_seminar', label: EVENT_TYPE_LABELS.enhancement_seminar },
+  { value: 'pre_submission', label: EVENT_TYPE_LABELS.pre_submission },
+  { value: 'open_defence', label: EVENT_TYPE_LABELS.open_defence },
   { value: 'other', label: EVENT_TYPE_LABELS.other },
 ];
 

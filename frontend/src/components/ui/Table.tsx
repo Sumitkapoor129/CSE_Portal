@@ -50,10 +50,11 @@ export function TableRow({ children }: TableRowProps) {
 interface TableCellProps {
   children: ReactNode;
   className?: string;
+  title?: string;
 }
 
-export function TableCell({ children, className }: TableCellProps) {
-  return <td className={cn('px-4 py-3 align-middle', className)}>{children}</td>;
+export function TableCell({ children, className, title }: TableCellProps) {
+  return <td className={cn('px-4 py-3 align-middle', className)} title={title}>{children}</td>;
 }
 
 interface TableEmptyProps {

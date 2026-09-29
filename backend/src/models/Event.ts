@@ -15,10 +15,11 @@ const eventSchema = new Schema<any>(
   {
     title: { type: String, required: true, trim: true },
     eventType: { type: String, enum: Object.values(EventType), required: true },
+    customEventType: { type: String, trim: true },
     description: { type: String, default: '' },
     date: { type: Date, required: true },
     startTime: { type: Date, required: true },
-    endTime: { type: Date, required: true },
+    endTime: { type: Date },
     location: { type: String, default: '' },
     organizer: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     organizerModel: { type: String, default: 'User' },

@@ -2,7 +2,18 @@ export type UserRole = 'student' | 'supervisor' | 'admin';
 export type StudentType = 'frp' | 'erp';
 export type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'resubmission_required' | 'completed';
 export type ThesisStatus = 'draft' | 'submitted' | 'under_review' | 'approved' | 'rejected' | 'resubmission_required';
-export type EventType = 'seminar' | 'comprehensive_exam' | 'progress_review' | 'thesis_defense' | 'course_registration' | 'other';
+export type EventType =
+  | 'progress_seminar'
+  | 'comprehensive_exam'
+  | 'topic_registration'
+  | 'enhancement_seminar'
+  | 'pre_submission'
+  | 'open_defence'
+  | 'other'
+  | 'seminar'
+  | 'progress_review'
+  | 'thesis_defense'
+  | 'course_registration';
 export type SRCMemberRole = 'chairperson' | 'supervisor' | 'co_supervisor' | 'member' | 'external_member';
 export const SRCMemberRole = {
   CHAIRPERSON: 'chairperson' as const,
@@ -220,10 +231,11 @@ export interface Thesis {
   approvedAt?: string;
 }
 
-export interface EventView {
+export interface Event {
   _id: string;
   title: string;
   eventType: EventType;
+  customEventType?: string;
   description?: string;
   date: string;
   startTime?: string;
@@ -234,6 +246,8 @@ export interface EventView {
   semester?: Semester | string;
   deadline?: string;
 }
+
+export type EventView = Event;
 
 export interface Deadline {
   _id: string;
@@ -335,7 +349,9 @@ export interface StudentOption {
   name: string;
   rollNumber: string;
   department: string;
-  studentType: StudentType;
+  studentType: string;
+  program?: string;
+  completedMilestones?: string[];
 }
 
 export interface StudentDashboardData {
@@ -391,18 +407,21 @@ export interface SupervisorStudentDetail {
   milestones?: Milestone[];
 }
 
-export interface SupervisorEventPayload {
+export interface CreateEventPayload {
   title: string;
   eventType: EventType;
+  customEventType?: string;
   description?: string;
   date: string;
   startTime: string;
-  endTime: string;
+  endTime?: string;
   location?: string;
   participants: string[];
   semester?: string;
   deadline?: string;
 }
+
+export type SupervisorEventPayload = CreateEventPayload;
 
 export interface AdminDashboardData {
   totalStudents: number;

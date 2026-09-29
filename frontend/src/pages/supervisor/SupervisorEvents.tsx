@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { FormEvent, JSX } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
@@ -6,7 +6,6 @@ import { useApi } from '../../hooks/useApi';
 import { supervisorApi } from '../../api/supervisor';
 import { PageHeader } from '../../components/shared/PageHeader';
 import { QueryError } from '../../components/shared/QueryError';
-import { ParticipantPicker } from '../../components/shared/ParticipantPicker';
 import { Alert } from '../../components/ui/Alert';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
@@ -19,20 +18,68 @@ import { Select } from '../../components/ui/Select';
 import { SkeletonTable } from '../../components/ui/Skeleton';
 import { Table, TableCell, TableRow } from '../../components/ui/Table';
 import { formatDate } from '../../utils/formatDate';
-import { EVENT_TYPE_LABELS, EVENT_TYPE_OPTIONS } from '../../utils/constants';
+import { EVENT_TYPE_LABELS } from '../../utils/constants';
 import type { EventType, StudentOption } from '../../types';
 
-const EMPTY_FORM = {
+interface EventFormState {
+  title: string;
+  eventType: EventType | '';
+  customEventType: string;
+  description: string;
+  date: string;
+  startTime: string;
+  location: string;
+  semester: string;
+}
+
+const EMPTY_FORM: EventFormState = {
   title: '',
-  eventType: 'seminar' as EventType,
+  eventType: '',
+  customEventType: '',
   description: '',
   date: '',
   startTime: '',
-  endTime: '',
   location: '',
   semester: '',
-  deadline: '',
 };
+
+export function formatScholarOptionLabel(scholar: StudentOption): string {
+  const programType = scholar.program
+    ? `${scholar.program.toUpperCase()}/${scholar.studentType.toUpperCase()}`
+    : scholar.studentType.toUpperCase();
+  return `${scholar.name} (${scholar.rollNumber} - ${programType})`;
+}
+
+export function getAvailableEventTypes(student: StudentOption): { value: EventType; label: string }[] {
+  const milestones = student.completedMilestones ?? [];
+  const options: { value: EventType; label: string }[] = [];
+
+  options.push({ value: 'progress_seminar', label: EVENT_TYPE_LABELS.progress_seminar });
+
+  if (!milestones.includes('comprehensive_exam')) {
+    options.push({ value: 'comprehensive_exam', label: EVENT_TYPE_LABELS.comprehensive_exam });
+  }
+
+  if (!milestones.includes('topic_registration')) {
+    options.push({ value: 'topic_registration', label: EVENT_TYPE_LABELS.topic_registration });
+  }
+
+  if (student.studentType?.toLowerCase() === 'frp' && !milestones.includes('enhancement_seminar')) {
+    options.push({ value: 'enhancement_seminar', label: EVENT_TYPE_LABELS.enhancement_seminar });
+  }
+
+  if (!milestones.includes('pre_submission')) {
+    options.push({ value: 'pre_submission', label: EVENT_TYPE_LABELS.pre_submission });
+  }
+
+  if (!milestones.includes('defense')) {
+    options.push({ value: 'open_defence', label: EVENT_TYPE_LABELS.open_defence });
+  }
+
+  options.push({ value: 'other', label: EVENT_TYPE_LABELS.other });
+
+  return options;
+}
 
 export function SupervisorEvents(): JSX.Element {
   const { user } = useAuth();
@@ -44,9 +91,10 @@ export function SupervisorEvents(): JSX.Element {
 
   const [modalOpen, setModalOpen] = useState(false);
   const [options, setOptions] = useState<StudentOption[]>([]);
+  const [optionsLoading, setOptionsLoading] = useState(false);
   const [optionsError, setOptionsError] = useState(false);
-  const [form, setForm] = useState(EMPTY_FORM);
-  const [selected, setSelected] = useState<string[]>([]);
+  const [selectedStudentId, setSelectedStudentId] = useState('');
+  const [form, setForm] = useState<EventFormState>(EMPTY_FORM);
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -58,44 +106,116 @@ export function SupervisorEvents(): JSX.Element {
 
   const openModal = () => {
     setForm(EMPTY_FORM);
-    setSelected([]);
+    setSelectedStudentId('');
     setFormError(null);
     setOptionsError(false);
     setModalOpen(true);
-    setOptions([]);
-    supervisorApi
-      .getStudentOptions()
-      .then((result) => setOptions(result))
-      .catch(() => setOptionsError(true));
+
+    if (options.length === 0) {
+      setOptionsLoading(true);
+      supervisorApi
+        .getStudentOptions()
+        .then((result) => {
+          setOptions(result);
+          setOptionsLoading(false);
+        })
+        .catch(() => {
+          setOptionsError(true);
+          setOptionsLoading(false);
+        });
+    }
   };
 
-  const toggleParticipant = (userId: string) => {
-    setSelected((prev) =>
-      prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]
-    );
+  const handleStudentChange = (studentUserId: string) => {
+    setSelectedStudentId(studentUserId);
+    setFormError(null);
+    const student = options.find((s) => s.userId === studentUserId);
+    if (!student) {
+      setForm((prev) => ({ ...prev, eventType: '', customEventType: '' }));
+      return;
+    }
+    const available = getAvailableEventTypes(student);
+    if (!available.some((opt) => opt.value === form.eventType)) {
+      setForm((prev) => ({ ...prev, eventType: '', customEventType: '' }));
+    }
   };
+
+  const handleEventTypeChange = (value: EventType | '') => {
+    setForm((prev) => ({
+      ...prev,
+      eventType: value,
+      customEventType: value === 'other' ? prev.customEventType : '',
+    }));
+  };
+
+  const selectedStudent = useMemo(
+    () => options.find((s) => s.userId === selectedStudentId),
+    [options, selectedStudentId]
+  );
+
+  const studentSelectOptions = useMemo(
+    () => [
+      {
+        value: '',
+        label: optionsLoading
+          ? 'Loading scholars…'
+          : options.length === 0 && !optionsError
+          ? 'No eligible scholars found'
+          : 'Select a scholar…',
+      },
+      ...options.map((option) => ({
+        value: option.userId,
+        label: formatScholarOptionLabel(option),
+      })),
+    ],
+    [options, optionsLoading, optionsError]
+  );
+
+  const eventTypeSelectOptions = useMemo(
+    () =>
+      selectedStudent
+        ? [
+            { value: '', label: 'Select event type…' },
+            ...getAvailableEventTypes(selectedStudent),
+          ]
+        : [{ value: '', label: 'Select a scholar first to view event types' }],
+    [selectedStudent]
+  );
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (submitting) return;
-    if (!form.title.trim() || !form.date || !form.startTime || !form.endTime) {
-      setFormError('Title, date, start time, and end time are required.');
+
+    if (!selectedStudentId) {
+      setFormError('Please select a scholar.');
       return;
     }
+    if (!form.eventType) {
+      setFormError('Please select an event type.');
+      return;
+    }
+    if (form.eventType === 'other' && !form.customEventType.trim()) {
+      setFormError('Please enter a custom event type.');
+      return;
+    }
+    if (!form.title.trim() || !form.date || !form.startTime) {
+      setFormError('Title, date, and start time are required.');
+      return;
+    }
+
     setSubmitting(true);
     setFormError(null);
     try {
       await supervisorApi.createEvent({
         title: form.title.trim(),
-        eventType: form.eventType,
+        eventType: form.eventType as EventType,
+        customEventType: form.eventType === 'other' ? form.customEventType.trim() : undefined,
         description: form.description.trim() || undefined,
         date: form.date,
         startTime: form.startTime,
-        endTime: form.endTime,
         location: form.location.trim() || undefined,
-        participants: selected,
+        participants: [selectedStudentId],
         semester: form.semester.trim() || undefined,
-        deadline: form.deadline || undefined,
       });
       setModalOpen(false);
       setSubmitting(false);
@@ -133,6 +253,7 @@ export function SupervisorEvents(): JSX.Element {
             <EmptyState title="No events scheduled" message="Create an event to invite your scholars." />
           ) : (
             <Table
+              ariaLabel="Scheduled Events"
               columns={[
                 { key: 'title', header: 'Title' },
                 { key: 'type', header: 'Type' },
@@ -141,17 +262,27 @@ export function SupervisorEvents(): JSX.Element {
                 { key: 'participants', header: 'Participants' },
               ]}
             >
-              {events.map((event) => (
-                <TableRow key={event._id}>
-                  <TableCell className="font-medium text-gray-900">{event.title}</TableCell>
-                  <TableCell>
-                    <Badge label={EVENT_TYPE_LABELS[event.eventType]} />
-                  </TableCell>
-                  <TableCell className="text-gray-500">{formatDate(event.date)}</TableCell>
-                  <TableCell className="text-gray-700">{event.location || '—'}</TableCell>
-                  <TableCell className="text-gray-700">{event.participants?.length ?? 0}</TableCell>
-                </TableRow>
-              ))}
+              {events.map((event) => {
+                const typeBadgeLabel =
+                  event.eventType === 'other' && event.customEventType
+                    ? `Others: ${event.customEventType}`
+                    : EVENT_TYPE_LABELS[event.eventType] || event.eventType;
+
+                return (
+                  <TableRow key={event._id}>
+                    <TableCell className="font-medium text-gray-900">{event.title}</TableCell>
+                    <TableCell className="max-w-xs truncate" title={typeBadgeLabel}>
+                      <Badge label={typeBadgeLabel} />
+                    </TableCell>
+                    <TableCell className="text-gray-600">
+                      {formatDate(event.date)}
+                      {event.startTime ? ` • ${event.startTime}` : ''}
+                    </TableCell>
+                    <TableCell className="text-gray-700">{event.location || '—'}</TableCell>
+                    <TableCell className="text-gray-700">{event.participants?.length ?? 0}</TableCell>
+                  </TableRow>
+                );
+              })}
             </Table>
           )}
           {pagination && pagination.totalPages > 1 && (
@@ -166,64 +297,74 @@ export function SupervisorEvents(): JSX.Element {
         <form onSubmit={handleSubmit} className="space-y-4" noValidate>
           {formError && <Alert variant="error">{formError}</Alert>}
           {optionsError && (
-            <Alert variant="warning">Unable to load student options. Participants can be left empty.</Alert>
+            <Alert variant="warning">Unable to load eligible scholars. Please close and try again.</Alert>
           )}
-          <div className="grid gap-4 sm:grid-cols-6">
-            <div className="sm:col-span-4">
-              <Input
-                id="event-title"
-                label="Title"
-                value={form.title}
-                onChange={(event) => setForm({ ...form, title: event.target.value })}
-                placeholder="Event title"
-              />
-            </div>
-            <div className="sm:col-span-2">
-              <Select
-                id="event-type"
-                label="Event Type"
-                value={form.eventType}
-                onChange={(event) => setForm({ ...form, eventType: event.target.value as EventType })}
-                options={EVENT_TYPE_OPTIONS}
-              />
-            </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Select
+              id="event-student"
+              label="Scholar"
+              value={selectedStudentId}
+              onChange={(event) => handleStudentChange(event.target.value)}
+              options={studentSelectOptions}
+              disabled={optionsLoading || options.length === 0}
+            />
+            <Select
+              id="event-type"
+              label="Event Type"
+              value={form.eventType}
+              onChange={(event) => handleEventTypeChange(event.target.value as EventType | '')}
+              options={eventTypeSelectOptions}
+              disabled={!selectedStudentId}
+              hint={!selectedStudentId ? 'Please select a scholar first' : undefined}
+            />
           </div>
-          <div className="grid gap-4 sm:grid-cols-3">
+
+          {form.eventType === 'other' && (
+            <Input
+              id="event-custom-type"
+              label="Custom Event Type"
+              value={form.customEventType}
+              onChange={(event) => setForm((prev) => ({ ...prev, customEventType: event.target.value }))}
+              placeholder="Enter event type"
+              required
+            />
+          )}
+
+          <Input
+            id="event-title"
+            label="Title"
+            value={form.title}
+            onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))}
+            placeholder="Event title"
+            required
+          />
+
+          <div className="grid gap-4 sm:grid-cols-2">
             <Input
               id="event-date"
               label="Date"
               type="date"
               value={form.date}
-              onChange={(event) => setForm({ ...form, date: event.target.value })}
+              onChange={(event) => setForm((prev) => ({ ...prev, date: event.target.value }))}
+              required
             />
             <Input
               id="event-start"
               label="Start Time"
               type="time"
               value={form.startTime}
-              onChange={(event) => setForm({ ...form, startTime: event.target.value })}
-            />
-            <Input
-              id="event-end"
-              label="End Time"
-              type="time"
-              value={form.endTime}
-              onChange={(event) => setForm({ ...form, endTime: event.target.value })}
+              onChange={(event) => setForm((prev) => ({ ...prev, startTime: event.target.value }))}
+              required
             />
           </div>
-          <div className="grid gap-4 sm:grid-cols-3">
-            <Input
-              id="event-deadline"
-              label="Deadline"
-              type="date"
-              value={form.deadline}
-              onChange={(event) => setForm({ ...form, deadline: event.target.value })}
-            />
+
+          <div className="grid gap-4 sm:grid-cols-2">
             <Input
               id="event-location"
               label="Location"
               value={form.location}
-              onChange={(event) => setForm({ ...form, location: event.target.value })}
+              onChange={(event) => setForm((prev) => ({ ...prev, location: event.target.value }))}
               placeholder="Optional"
             />
             <Input
@@ -232,30 +373,21 @@ export function SupervisorEvents(): JSX.Element {
               type="number"
               min={1}
               value={form.semester}
-              onChange={(event) => setForm({ ...form, semester: event.target.value })}
+              onChange={(event) => setForm((prev) => ({ ...prev, semester: event.target.value }))}
               placeholder="Optional"
             />
           </div>
+
           <Input
             id="event-description"
             label="Description"
             value={form.description}
-            onChange={(event) => setForm({ ...form, description: event.target.value })}
+            onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value }))}
             placeholder="Optional description"
           />
-          <ParticipantPicker
-            options={options.map((option) => ({
-              id: option.userId,
-              name: option.name,
-              rollNumber: option.rollNumber,
-              department: option.department,
-            }))}
-            selected={selected}
-            loading={options.length === 0 && !optionsError}
-            onToggle={toggleParticipant}
-          />
+
           <div className="flex flex-col gap-3 border-t border-gray-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-xs text-gray-600">Title, date, start, and end time are required.</p>
+            <p className="text-xs text-gray-600">Scholar, event type, title, date, and start time are required.</p>
             <div className="flex justify-end gap-3">
               <Button type="button" variant="secondary" onClick={() => setModalOpen(false)}>
                 Cancel
