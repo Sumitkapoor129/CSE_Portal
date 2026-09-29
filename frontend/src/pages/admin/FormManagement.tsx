@@ -41,6 +41,7 @@ export function FormManagement(): JSX.Element {
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [previewForm, setPreviewForm] = useState<Form | null>(null);
 
   const [confirmDelete, setConfirmDelete] = useState<Form | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -119,9 +120,9 @@ export function FormManagement(): JSX.Element {
       setSuccessMessage(editing ? 'Form updated successfully.' : 'Form created successfully.');
       setPage(1);
       refetch();
-    } catch {
+    } catch (err: unknown) {
       setSubmitting(false);
-      setFormError('Unable to save the form. Please try again.');
+      setFormError(err instanceof Error ? err.message : 'Unable to save the form. Please try again.');
     }
   };
 
@@ -136,9 +137,9 @@ export function FormManagement(): JSX.Element {
       setDeleting(false);
       setSuccessMessage('Form deleted successfully.');
       refetch();
-    } catch {
+    } catch (err: unknown) {
       setDeleting(false);
-      setDeleteError('Unable to delete the form. Please try again.');
+      setDeleteError(err instanceof Error ? err.message : 'Unable to delete the form. Please try again.');
     }
   };
 
@@ -161,6 +162,7 @@ export function FormManagement(): JSX.Element {
       {!loading && !error && (
         <Card title="Forms" padded={false}>
           <Table
+            ariaLabel="Forms Directory"
             columns={[
               { key: 'formName', header: 'Form Name' },
               { key: 'formType', header: 'Form Type' },
@@ -178,8 +180,8 @@ export function FormManagement(): JSX.Element {
                   <TableCell className="text-gray-700">{item.formType}</TableCell>
                   <TableCell className="text-gray-700">
                     {item.semesterApplicable && item.semesterApplicable.length > 0
-                      ? item.semesterApplicable.join(', ')
-                      : '—'}
+                       ? item.semesterApplicable.join(', ')
+                       : '—'}
                   </TableCell>
                   <TableCell className="text-gray-700">
                     {item.studentTypeApplicable && item.studentTypeApplicable.length > 0
@@ -188,12 +190,26 @@ export function FormManagement(): JSX.Element {
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
-                      <Button variant="secondary" size="sm" onClick={() => openEdit(item)}>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        aria-label={`Preview form: ${item.formName}`}
+                        onClick={() => setPreviewForm(item)}
+                      >
+                        Preview
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        aria-label={`Edit form: ${item.formName}`}
+                        onClick={() => openEdit(item)}
+                      >
                         Edit
                       </Button>
                       <Button
                         variant="danger"
                         size="sm"
+                        aria-label={`Delete form: ${item.formName}`}
                         onClick={() => {
                           setDeleteError(null);
                           setConfirmDelete(item);
@@ -239,6 +255,28 @@ export function FormManagement(): JSX.Element {
             onChange={(event) => setForm({ ...form, fileUrl: event.target.value })}
             placeholder="https://..."
           />
+          {form.fileUrl.trim() && (
+            <div>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() =>
+                  setPreviewForm({
+                    _id: editing?._id || 'temp',
+                    formName: form.formName || 'Document Preview',
+                    formType: form.formType || 'General',
+                    fileUrl: form.fileUrl.trim(),
+                    semesterApplicable: parseSemesters(form.semesterApplicable),
+                    department: form.department.trim() || undefined,
+                    studentTypeApplicable: types.length > 0 ? types : undefined,
+                  })
+                }
+              >
+                Preview File
+              </Button>
+            </div>
+          )}
           <Input
             id="form-semesters"
             label="Applicable Semesters"
@@ -281,6 +319,79 @@ export function FormManagement(): JSX.Element {
             </Button>
           </div>
         </form>
+      </Modal>
+
+      <Modal
+        open={previewForm !== null}
+        onClose={() => setPreviewForm(null)}
+        title={`Preview: ${previewForm?.formName || 'Form'}`}
+      >
+        {previewForm && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3 rounded-lg border border-gray-200 bg-gray-50 p-3 text-xs sm:text-sm">
+              <div>
+                <span className="font-semibold text-gray-700">Category / Type: </span>
+                <span className="text-gray-900">{previewForm.formType}</span>
+              </div>
+              <div>
+                <span className="font-semibold text-gray-700">Department: </span>
+                <span className="text-gray-900">{previewForm.department || 'All Departments'}</span>
+              </div>
+              <div>
+                <span className="font-semibold text-gray-700">Semesters: </span>
+                <span className="text-gray-900">
+                  {previewForm.semesterApplicable && previewForm.semesterApplicable.length > 0
+                    ? previewForm.semesterApplicable.join(', ')
+                    : 'All Semesters'}
+                </span>
+              </div>
+              <div>
+                <span className="font-semibold text-gray-700">Applicable To: </span>
+                <span className="text-gray-900">
+                  {previewForm.studentTypeApplicable && previewForm.studentTypeApplicable.length > 0
+                    ? previewForm.studentTypeApplicable.map((t) => STUDENT_TYPE_LABELS[t] || t).join(', ')
+                    : 'All Students'}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex justify-end">
+              <a
+                href={previewForm.fileUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600 hover:text-blue-800"
+              >
+                <span>Open in New Tab</span>
+                <span className="sr-only">(opens in new tab)</span>
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                  />
+                </svg>
+              </a>
+            </div>
+
+            <div className="h-96 w-full overflow-hidden rounded-lg border border-gray-200 bg-gray-100">
+              <iframe
+                src={previewForm.fileUrl}
+                title={`Document preview: ${previewForm.formName || 'Form document'}`}
+                sandbox="allow-scripts allow-same-origin allow-forms"
+                loading="lazy"
+                className="h-full w-full border-0"
+              />
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <Button variant="secondary" onClick={() => setPreviewForm(null)}>
+                Close
+              </Button>
+            </div>
+          </div>
+        )}
       </Modal>
 
       <ConfirmModal

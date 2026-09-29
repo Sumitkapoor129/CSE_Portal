@@ -9,6 +9,11 @@ import { Event } from '../models/Event';
 import { Form } from '../models/Form';
 import { Deadline } from '../models/Deadline';
 import { ApprovalRequest } from '../models/ApprovalRequest';
+import { Course } from '../models/Course';
+import { StudentCourse } from '../models/StudentCourse';
+import { Semester } from '../models/Semester';
+import { Credits } from '../models/Credits';
+import { computeCreditsForSemester } from '../services/creditService';
 import { AppError, asyncHandler } from '../middleware/errorHandler';
 import { createAuditLog } from '../utils/audit';
 import { createNotification, createBulkNotifications } from '../utils/notify';
@@ -58,7 +63,7 @@ export const getDashboard = asyncHandler(async (req: AuthRequest, res: Response)
 // ─── Student Management ──────────────────────────────────────────────────────
 
 export const createStudent = asyncHandler(async (req: AuthRequest, res: Response) => {
-  const { email, password, name, collegeId, rollNumber, studentType, department, researchArea, admissionDate, requiredCredits } = req.body;
+  const { email, password, name, collegeId, rollNumber, studentType, program, department, researchArea, admissionDate, requiredCredits } = req.body;
 
   if (!email || !password || !name || !collegeId || !rollNumber || !studentType || !department) {
     throw new AppError('All required fields must be provided', 400);
@@ -94,6 +99,7 @@ export const createStudent = asyncHandler(async (req: AuthRequest, res: Response
     collegeId,
     rollNumber,
     studentType,
+    program: program || 'phd',
     department,
     researchArea: researchArea || '',
     admissionDate: admissionDate || new Date(),
@@ -111,7 +117,7 @@ export const createStudent = asyncHandler(async (req: AuthRequest, res: Response
     action: 'CREATE_STUDENT',
     entity: 'StudentProfile',
     entityId: profile._id.toString(),
-    newValue: { email, name, collegeId, rollNumber, studentType, department } as Record<string, unknown>,
+    newValue: { email, name, collegeId, rollNumber, studentType, program: profile.program, department } as Record<string, unknown>,
   });
 
   res.status(201).json({
@@ -134,7 +140,7 @@ export const updateStudent = asyncHandler(async (req: AuthRequest, res: Response
 
   const previousValue = profile.toObject() as unknown as Record<string, unknown>;
 
-  const allowedFields = ['collegeId', 'rollNumber', 'studentType', 'department', 'researchArea', 'profilePhoto'];
+  const allowedFields = ['collegeId', 'rollNumber', 'studentType', 'program', 'department', 'researchArea', 'profilePhoto'];
   const sanitizedUpdates: Record<string, unknown> = {};
   for (const field of allowedFields) {
     if (updates[field] !== undefined) {
@@ -263,7 +269,7 @@ export const listStudents = asyncHandler(async (req: AuthRequest, res: Response)
 // ─── Faculty Management ──────────────────────────────────────────────────────
 
 export const createFaculty = asyncHandler(async (req: AuthRequest, res: Response) => {
-  const { email, password, name, employeeId, department, designation, researchAreas } = req.body;
+  const { email, password, name, employeeId, department, designation, researchAreas, isHod } = req.body;
 
   if (!email || !password || !name || !employeeId || !department || !designation) {
     throw new AppError('All required fields must be provided', 400);
@@ -277,6 +283,11 @@ export const createFaculty = asyncHandler(async (req: AuthRequest, res: Response
   const existingEmp = await FacultyProfile.findOne({ employeeId });
   if (existingEmp) {
     throw new AppError('Employee ID already exists', 409);
+  }
+
+  if (isHod) {
+    // Only 1 person can be the HOD at any time; unset any existing HOD
+    await FacultyProfile.updateMany({ isHod: true }, { isHod: false });
   }
 
   const hashedPassword = await bcrypt.hash(password, 10);
@@ -294,6 +305,7 @@ export const createFaculty = asyncHandler(async (req: AuthRequest, res: Response
     employeeId,
     department,
     designation,
+    isHod: Boolean(isHod),
     researchAreas: researchAreas || [],
   });
 
@@ -302,7 +314,7 @@ export const createFaculty = asyncHandler(async (req: AuthRequest, res: Response
     action: 'CREATE_FACULTY',
     entity: 'FacultyProfile',
     entityId: profile._id.toString(),
-    newValue: { email, name, employeeId, department, designation } as Record<string, unknown>,
+    newValue: { email, name, employeeId, department, designation, isHod: profile.isHod } as Record<string, unknown>,
   });
 
   res.status(201).json({
@@ -325,12 +337,20 @@ export const updateFaculty = asyncHandler(async (req: AuthRequest, res: Response
 
   const previousValue = profile.toObject() as unknown as Record<string, unknown>;
 
-  const allowedFields = ['employeeId', 'department', 'designation', 'researchAreas', 'profilePhoto'];
+  const allowedFields = ['employeeId', 'department', 'designation', 'researchAreas', 'profilePhoto', 'isHod'];
   const sanitizedUpdates: Record<string, unknown> = {};
   for (const field of allowedFields) {
     if (updates[field] !== undefined) {
       sanitizedUpdates[field] = updates[field];
     }
+  }
+
+  if (updates.isHod === true) {
+    // Only 1 person can be HOD - unset on all others
+    await FacultyProfile.updateMany({ _id: { $ne: profile._id }, isHod: true }, { isHod: false });
+    sanitizedUpdates.isHod = true;
+  } else if (updates.isHod === false) {
+    sanitizedUpdates.isHod = false;
   }
 
   if (updates.name || updates.email) {
@@ -510,9 +530,19 @@ export const assignSupervisor = asyncHandler(async (req: AuthRequest, res: Respo
 // ─── SRC Committee ───────────────────────────────────────────────────────────
 
 const validateSRCMembers = async (members: Array<{ role: string; faculty: string }>, studentId: string): Promise<void> => {
+  const hodFaculty = await FacultyProfile.findOne({ isHod: true });
+  if (!hodFaculty) {
+    throw new AppError('No HOD found in system. Please designate a Faculty as HOD in Faculty Management before creating or updating an SRC committee.', 400);
+  }
+
   const chairpersonCount = members.filter((m) => m.role === SRCMemberRole.CHAIRPERSON).length;
   if (chairpersonCount !== 1) {
     throw new AppError('SRC committee must have exactly one chairperson', 400);
+  }
+
+  const chairperson = members.find((m) => m.role === SRCMemberRole.CHAIRPERSON);
+  if (chairperson && chairperson.faculty.toString() !== hodFaculty._id.toString()) {
+    throw new AppError('The chairperson of an SRC committee must be the HOD.', 400);
   }
 
   let studentProfile = await StudentProfile.findById(studentId);
@@ -545,13 +575,33 @@ const validateSRCMembers = async (members: Array<{ role: string; faculty: string
   const nonSupervisorRoles = members.filter(
     (m) => m.faculty === supervisorId && m.role !== SRCMemberRole.SUPERVISOR
   );
-  if (nonSupervisorRoles.length > 0) {
-    throw new AppError('The assigned supervisor cannot also be selected as Chairperson or Member.', 400);
+  const invalidSupervisorRoles = nonSupervisorRoles.filter(
+    (m) => !(m.role === SRCMemberRole.CHAIRPERSON && m.faculty === hodFaculty._id.toString())
+  );
+  if (invalidSupervisorRoles.length > 0) {
+    throw new AppError('The assigned supervisor cannot also be selected as a regular or external member.', 400);
   }
 
-  const regularMembers = members.filter((m) => m.role === SRCMemberRole.MEMBER);
-  if (regularMembers.length < 2) {
-    throw new AppError('SRC committee must have at least 2 regular members (per ordinance)', 400);
+  // Check department constraints for MEMBER vs EXTERNAL_MEMBER
+  for (const m of members) {
+    if (m.role === SRCMemberRole.MEMBER) {
+      const fac = await FacultyProfile.findById(m.faculty);
+      if (!fac || fac.department.trim().toUpperCase() !== 'CSE') {
+        throw new AppError(`Regular Member must belong to CSE department (${fac ? fac.department : 'unknown'})`, 400);
+      }
+    } else if (m.role === SRCMemberRole.EXTERNAL_MEMBER) {
+      const fac = await FacultyProfile.findById(m.faculty);
+      if (!fac || fac.department.trim().toUpperCase() === 'CSE') {
+        throw new AppError(`External Member must belong to a department outside CSE (${fac ? fac.department : 'unknown'})`, 400);
+      }
+    }
+  }
+
+  const regularOrExternalMembers = members.filter(
+    (m) => m.role === SRCMemberRole.MEMBER || m.role === SRCMemberRole.EXTERNAL_MEMBER
+  );
+  if (regularOrExternalMembers.length < 2) {
+    throw new AppError('SRC committee must have at least 2 members (internal/external, per ordinance)', 400);
   }
 };
 
@@ -560,6 +610,11 @@ export const createSRCCommittee = asyncHandler(async (req: AuthRequest, res: Res
 
   if (!studentId || !rawMembers || !Array.isArray(rawMembers) || rawMembers.length === 0) {
     throw new AppError('studentId and committee members are required', 400);
+  }
+
+  const hodFaculty = await FacultyProfile.findOne({ isHod: true });
+  if (!hodFaculty) {
+    throw new AppError('No HOD found in system. Please designate a Faculty as HOD in Faculty Management before creating an SRC committee.', 400);
   }
 
   let studentProfile = await StudentProfile.findById(studentId);
@@ -587,7 +642,13 @@ export const createSRCCommittee = asyncHandler(async (req: AuthRequest, res: Res
     throw new AppError('A supervisor must be assigned to the student before creating the SRC committee.', 400);
   }
 
-  const members = [...rawMembers];
+  // Chairperson is permanently locked to HOD (admin cannot choose chairperson)
+  const nonChairMembers = rawMembers.filter((m) => m.role !== SRCMemberRole.CHAIRPERSON);
+  const members = [
+    { faculty: hodFaculty._id.toString(), role: SRCMemberRole.CHAIRPERSON },
+    ...nonChairMembers,
+  ];
+
   if (!members.some((m) => m.role === SRCMemberRole.SUPERVISOR)) {
     members.push({ faculty: supervisorId, role: SRCMemberRole.SUPERVISOR });
   }
@@ -631,6 +692,11 @@ export const updateSRCCommittee = asyncHandler(async (req: AuthRequest, res: Res
     throw new AppError('members array is required', 400);
   }
 
+  const hodFaculty = await FacultyProfile.findOne({ isHod: true });
+  if (!hodFaculty) {
+    throw new AppError('No HOD found in system. Please designate a Faculty as HOD in Faculty Management before updating an SRC committee.', 400);
+  }
+
   const committee = await SRCCommittee.findById(id);
   if (!committee) {
     throw new AppError('SRC committee not found', 404);
@@ -654,7 +720,13 @@ export const updateSRCCommittee = asyncHandler(async (req: AuthRequest, res: Res
     }
   }
 
-  const members = [...rawMembers];
+  // Chairperson is permanently locked to HOD (admin cannot choose chairperson)
+  const nonChairMembers = rawMembers.filter((m) => m.role !== SRCMemberRole.CHAIRPERSON);
+  const members = [
+    { faculty: hodFaculty._id.toString(), role: SRCMemberRole.CHAIRPERSON },
+    ...nonChairMembers,
+  ];
+
   if (supervisorId && !members.some((m) => m.role === SRCMemberRole.SUPERVISOR)) {
     members.push({ faculty: supervisorId, role: SRCMemberRole.SUPERVISOR });
   }
@@ -1240,6 +1312,282 @@ export const adminReviewInternship = asyncHandler(async (req: AuthRequest, res: 
   });
 
   res.status(200).json({ success: true, data: internship });
+});
+
+// ─── Student Course Management (Admin Direct, No Approval Needed) ─────────────
+
+export const getStudentCourses = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { studentId } = req.params;
+  let studentProfile = await StudentProfile.findById(studentId);
+  if (!studentProfile) {
+    studentProfile = await StudentProfile.findOne({ user: studentId });
+  }
+  if (!studentProfile) {
+    throw new AppError('Student profile not found', 404);
+  }
+
+  const semesters = await Semester.find({ student: studentProfile._id }).sort({ semesterNumber: 1 }).lean();
+
+  const studentCourses = await StudentCourse.find({ student: studentProfile._id })
+    .populate('course')
+    .populate('semester', 'semesterNumber academicYear')
+    .sort({ createdAt: -1 })
+    .lean();
+
+  const credits = await Credits.find({ student: studentProfile._id })
+    .populate('semester', 'semesterNumber academicYear')
+    .lean();
+
+  res.status(200).json({
+    success: true,
+    data: {
+      semesters,
+      studentCourses,
+      credits,
+    },
+  });
+});
+
+export const addStudentCourse = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { studentId } = req.params;
+  const { semesterId, semesterNumber, academicYear, courseCode, courseName, credits, status, grade } = req.body;
+
+  if (!courseCode || !courseName || credits === undefined) {
+    throw new AppError('courseCode, courseName and credits are required', 400);
+  }
+
+  let studentProfile = await StudentProfile.findById(studentId);
+  if (!studentProfile) {
+    studentProfile = await StudentProfile.findOne({ user: studentId });
+  }
+  if (!studentProfile) {
+    throw new AppError('Student profile not found', 404);
+  }
+
+  let semesterDoc: any = null;
+  if (semesterId) {
+    semesterDoc = await Semester.findOne({ _id: semesterId, student: studentProfile._id });
+  }
+  if (!semesterDoc && semesterNumber) {
+    semesterDoc = await Semester.findOne({ semesterNumber, student: studentProfile._id });
+    if (!semesterDoc) {
+      semesterDoc = await Semester.create({
+        student: studentProfile._id,
+        semesterNumber,
+        academicYear: academicYear || `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`,
+        startDate: new Date(),
+        endDate: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000),
+      });
+    }
+  }
+
+  if (!semesterDoc) {
+    const latestSem = await Semester.findOne({ student: studentProfile._id }).sort({ semesterNumber: -1 });
+    if (latestSem) {
+      semesterDoc = latestSem;
+    } else {
+      semesterDoc = await Semester.create({
+        student: studentProfile._id,
+        semesterNumber: 1,
+        academicYear: `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`,
+        startDate: new Date(),
+        endDate: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000),
+      });
+    }
+  }
+
+  const courseStatus = status === 'pending'
+    ? ApprovalStatus.PENDING
+    : (status === 'approved' ? ApprovalStatus.APPROVED : ApprovalStatus.COMPLETED);
+
+  const course = await Course.create({
+    semester: semesterDoc._id,
+    courseCode,
+    courseName,
+    credits: Number(credits),
+    grade: grade || undefined,
+    status: courseStatus,
+  });
+
+  const studentCourse = await StudentCourse.create({
+    student: studentProfile._id,
+    course: course._id,
+    semester: semesterDoc._id,
+    status: courseStatus,
+    approvedBy: req.user!.id,
+    approvedAt: new Date(),
+  });
+
+  try {
+    const semResult = await computeCreditsForSemester(
+      studentProfile._id.toString(),
+      semesterDoc._id.toString(),
+      studentProfile.requiredCredits || 12
+    );
+    await Credits.findOneAndUpdate(
+      { student: studentProfile._id, semester: semesterDoc._id },
+      { earnedCredits: semResult.earned, requiredCredits: semResult.required },
+      { upsert: true, new: true }
+    );
+  } catch (err) {
+    // Non-blocking credit calculation
+  }
+
+  await createAuditLog({
+    user: req.user!.id,
+    action: 'ADMIN_ADD_COURSE',
+    entity: 'StudentCourse',
+    entityId: studentCourse._id.toString(),
+    newValue: { courseCode, courseName, credits, status: courseStatus, grade },
+  });
+
+  res.status(201).json({
+    success: true,
+    data: {
+      studentCourse,
+      course,
+    },
+  });
+});
+
+export const updateStudentCourse = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { studentId, studentCourseId } = req.params;
+  const { courseCode, courseName, credits, status, grade, semesterId } = req.body;
+
+  const studentCourse = await StudentCourse.findById(studentCourseId);
+  if (!studentCourse) {
+    throw new AppError('Student course record not found', 404);
+  }
+
+  let studentProfile = await StudentProfile.findById(studentId);
+  if (!studentProfile) {
+    studentProfile = await StudentProfile.findOne({ user: studentId });
+  }
+
+  const course = await Course.findById(studentCourse.course);
+  if (!course) {
+    throw new AppError('Course record not found', 404);
+  }
+
+  const prevSemester = studentCourse.semester;
+
+  if (courseCode) course.courseCode = courseCode;
+  if (courseName) course.courseName = courseName;
+  if (credits !== undefined) course.credits = Number(credits);
+  if (grade !== undefined) course.grade = grade;
+  if (status) {
+    const courseStatus = status === 'pending'
+      ? ApprovalStatus.PENDING
+      : (status === 'approved' ? ApprovalStatus.APPROVED : ApprovalStatus.COMPLETED);
+    course.status = courseStatus;
+    studentCourse.status = courseStatus;
+    studentCourse.approvedBy = req.user!.id;
+    studentCourse.approvedAt = new Date();
+  }
+  if (semesterId) {
+    course.semester = semesterId;
+    studentCourse.semester = semesterId;
+  }
+
+  await course.save();
+  await studentCourse.save();
+
+  if (studentProfile) {
+    try {
+      const semResult = await computeCreditsForSemester(
+        studentProfile._id.toString(),
+        studentCourse.semester.toString(),
+        studentProfile.requiredCredits || 12
+      );
+      await Credits.findOneAndUpdate(
+        { student: studentProfile._id, semester: studentCourse.semester },
+        { earnedCredits: semResult.earned, requiredCredits: semResult.required },
+        { upsert: true, new: true }
+      );
+
+      if (prevSemester && prevSemester.toString() !== studentCourse.semester.toString()) {
+        const prevResult = await computeCreditsForSemester(
+          studentProfile._id.toString(),
+          prevSemester.toString(),
+          studentProfile.requiredCredits || 12
+        );
+        await Credits.findOneAndUpdate(
+          { student: studentProfile._id, semester: prevSemester },
+          { earnedCredits: prevResult.earned, requiredCredits: prevResult.required },
+          { upsert: true, new: true }
+        );
+      }
+    } catch (err) {
+      // Non-blocking credit calculation
+    }
+  }
+
+  await createAuditLog({
+    user: req.user!.id,
+    action: 'ADMIN_UPDATE_COURSE',
+    entity: 'StudentCourse',
+    entityId: studentCourseId,
+    newValue: { courseCode, courseName, credits, status: studentCourse.status, grade },
+  });
+
+  res.status(200).json({
+    success: true,
+    data: {
+      studentCourse,
+      course,
+    },
+  });
+});
+
+export const deleteStudentCourse = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { studentId, studentCourseId } = req.params;
+
+  const studentCourse = await StudentCourse.findById(studentCourseId);
+  if (!studentCourse) {
+    throw new AppError('Student course record not found', 404);
+  }
+
+  let studentProfile = await StudentProfile.findById(studentId);
+  if (!studentProfile) {
+    studentProfile = await StudentProfile.findOne({ user: studentId });
+  }
+
+  const courseId = studentCourse.course;
+  const semesterId = studentCourse.semester;
+
+  await StudentCourse.findByIdAndDelete(studentCourseId);
+  if (courseId) {
+    await Course.findByIdAndDelete(courseId);
+  }
+
+  if (studentProfile && semesterId) {
+    try {
+      const semResult = await computeCreditsForSemester(
+        studentProfile._id.toString(),
+        semesterId.toString(),
+        studentProfile.requiredCredits || 12
+      );
+      await Credits.findOneAndUpdate(
+        { student: studentProfile._id, semester: semesterId },
+        { earnedCredits: semResult.earned, requiredCredits: semResult.required },
+        { upsert: true, new: true }
+      );
+    } catch (err) {
+      // Non-blocking credit calculation
+    }
+  }
+
+  await createAuditLog({
+    user: req.user!.id,
+    action: 'ADMIN_DELETE_COURSE',
+    entity: 'StudentCourse',
+    entityId: studentCourseId,
+  });
+
+  res.status(200).json({
+    success: true,
+    data: { message: 'Course deleted successfully' },
+  });
 });
 
 

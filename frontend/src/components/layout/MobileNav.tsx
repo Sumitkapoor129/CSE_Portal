@@ -65,7 +65,7 @@ export function MobileNav(): JSX.Element {
         type="button"
         onClick={() => setOpen(true)}
         aria-label="Navigation menu"
-        aria-haspopup="menu"
+        aria-haspopup="dialog"
         aria-expanded={open}
         aria-controls="mobile-menu"
         className="inline-flex items-center justify-center rounded-md p-2 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 lg:hidden"
@@ -76,7 +76,7 @@ export function MobileNav(): JSX.Element {
       </button>
       {open && (
         <>
-          <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={close} />
+          <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" aria-hidden="true" onClick={close} />
           <div
             ref={panelRef}
             id="mobile-menu"
@@ -92,7 +92,9 @@ export function MobileNav(): JSX.Element {
                   <Avatar name={user.name} photo={user.profilePhoto ?? null} />
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold text-gray-900">{user.name}</p>
-                    <p className="truncate text-xs text-gray-500">{ROLE_LABELS[user.role]}</p>
+                    <p className="truncate text-xs text-gray-500">
+                      {user.role === 'supervisor' ? (user.designation || 'Faculty') : ROLE_LABELS[user.role]}
+                    </p>
                   </div>
                 </div>
               )}

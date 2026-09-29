@@ -17,7 +17,7 @@ export const computeCreditsForSemester = async (
       $match: {
         student: new mongoose.Types.ObjectId(studentId),
         semester: new mongoose.Types.ObjectId(semesterId),
-        status: 'approved',
+        status: { $in: ['approved', 'completed'] },
       },
     },
     { $lookup: { from: 'courses', localField: 'course', foreignField: '_id', as: 'courseInfo' } },
@@ -38,7 +38,7 @@ export const computeTotalCredits = async (
     {
       $match: {
         student: new mongoose.Types.ObjectId(studentId),
-        status: 'approved',
+        status: { $in: ['approved', 'completed'] },
       },
     },
     { $lookup: { from: 'courses', localField: 'course', foreignField: '_id', as: 'courseInfo' } },

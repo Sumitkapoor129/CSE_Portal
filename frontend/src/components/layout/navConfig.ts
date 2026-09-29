@@ -32,8 +32,6 @@ export const NAV_ITEMS: Record<UserRole, NavItem[]> = {
     { to: '/admin/assignments', label: 'Assignments' },
     { to: '/admin/src-committees', label: 'SRC Committees' },
     { to: '/admin/forms', label: 'Forms' },
-    { to: '/admin/deadlines', label: 'Deadlines' },
-    { to: '/admin/events', label: 'Events' },
     { to: '/admin/search', label: 'Search' },
   ],
 };

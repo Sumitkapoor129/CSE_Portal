@@ -14,9 +14,9 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const buildUserPayload = async (
   user: { _id: unknown; name: string; email: string; role: UserRole },
-  existingProfile?: { profilePhoto?: string; isProfileComplete?: boolean } | null
+  existingProfile?: Record<string, any> | null
 ) => {
-  const profile = existingProfile ?? (
+  const profile: any = existingProfile ?? (
     user.role === UserRole.STUDENT
       ? await StudentProfile.findOne({ user: user._id })
       : await FacultyProfile.findOne({ user: user._id })
@@ -27,12 +27,20 @@ const buildUserPayload = async (
     email: user.email,
     role: user.role,
     profilePhoto: profile?.profilePhoto ?? null,
-    ...(user.role === UserRole.STUDENT && { isProfileComplete: (profile as { isProfileComplete?: boolean } | null)?.isProfileComplete }),
+    ...(user.role === UserRole.STUDENT && {
+      isProfileComplete: profile?.isProfileComplete,
+      program: profile?.program || 'phd',
+    }),
+    ...(user.role === UserRole.SUPERVISOR && {
+      designation: profile?.designation ?? null,
+      department: profile?.department ?? null,
+      isHod: Boolean(profile?.isHod),
+    }),
   };
 };
 
 export const registerStudent = asyncHandler(async (req: Request, res: Response) => {
-  const { email, password, name, collegeId, rollNumber, studentType, department } = req.body;
+  const { email, password, name, collegeId, rollNumber, studentType, department, program } = req.body;
 
   const missing: Record<string, string> = {};
   for (const f of ['email', 'password', 'name', 'collegeId', 'rollNumber', 'studentType', 'department'] as const) {
@@ -61,6 +69,7 @@ export const registerStudent = asyncHandler(async (req: Request, res: Response) 
     collegeId,
     rollNumber,
     studentType,
+    program: program || 'phd',
     department,
     admissionDate: new Date(),
   });

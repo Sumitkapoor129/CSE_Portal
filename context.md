@@ -148,11 +148,35 @@ Key field notes:
 5. Frontend: `cd frontend && npm run dev` → open http://localhost:5173.
 6. Login `admin@college.edu` / `admin123` — dashboard cards show the seeded numbers (hard-refresh if blank).
 7. Detail per task: read `.superpowers/sdd/frontend-implementation/briefs|reports/` + `progress.md`.
-8. Frontend verification commands (in `frontend/`): `npm test` (19/19), `npm run typecheck`, `npm run build`, `npm run lint` (1 accepted warning).
+## 18. Recent Features & Architecture Updates (Faculty HOD, SRC Governance, Direct Course Management, Ordinance & Supervisor Portal Enhancements)
 
-
-
-
-
-
-
+- **Faculty HOD Role**:
+  - Strictly 1 faculty member can be designated as the Head of Department (HOD) at any time.
+  - Assigning or updating a faculty member with `isHod: true` atomically unsets `isHod` on any previously designated HOD.
+  - Displays a distinctive "HOD" badge in the faculty directory.
+- **SRC Committee Governance**:
+  - Chairperson in all SRC committees is permanently locked to the active HOD; admin has no ability to choose or change the chairperson.
+  - Committee formation is rejected with HTTP 400 if no HOD has been designated.
+  - Role-first member selection: Admin first selects the Role (`Member (CSE Internal)` or `External Member (Outside CSE)`).
+  - Department constraints: `Member` is restricted to CSE faculty (`department === 'CSE'`), while `External Member` is restricted to faculty outside CSE (`department !== 'CSE'`).
+  - Assigned supervisor, co-supervisor, and HOD are automatically excluded from the regular/external member picker.
+- **Admin Direct Course Management**:
+  - Admin direct endpoints: `GET`, `POST`, `PUT`, `DELETE` at `/api/admin/students/:studentId/courses`.
+  - Admin can add and edit courses directly without requiring supervisor approval.
+  - Setting course status to `completed` directly computes and awards credits to the scholar's semester credits record.
+- **Form Preview**:
+  - Admin can preview any uploaded form directly in Form Management via a secure modal with an embedded iframe viewer (`sandbox="allow-scripts allow-same-origin allow-forms"`, `loading="lazy"`), metadata summary, and external tab link.
+- **Admin Navigation Restructuring**:
+  - Deadlines and Events completely removed from Admin routes and navigation; only faculty have the option to create and manage events.
+- **Faculty / Supervisor Enhancements**:
+  - Top-left subheading displays actual designation (`user.designation || 'Faculty'`) instead of generic "supervisor".
+  - "My Students" is partitioned into distinct program tabs: **PhD**, **M-Tech**, **B-Tech**, **MCA**.
+  - Added "My Role" column with badge (`Supervisor` vs `Co-supervisor`) and "My Role" filter.
+  - Removed research area filter from supervisor student directory.
+  - Student detail page renames "Academics" tab to "Course Work".
+  - Dedicated "Milestones" tab displays the full 12-milestone PhD journey timeline with due dates and statuses.
+  - Documents tab defaults to most recent documents first and provides a Semester filter dropdown.
+- **Testing & Verification**:
+  - Backend: 17 test suites, 90 tests passing (`npm test`).
+  - Typecheck: Zero errors across backend (`tsc --noEmit`) and frontend (`tsc -b`).
+  - Production builds: Both backend (`npm run build`) and frontend (`vite build`) build cleanly.

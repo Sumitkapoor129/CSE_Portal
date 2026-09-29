@@ -9,6 +9,8 @@ import type {
   AdminUpdateStudent,
   AuthUser,
   BulkImportReport,
+  Course,
+  Credits,
   Deadline,
   DeadlineFields,
   EventView,
@@ -23,8 +25,10 @@ import type {
   MilestoneStatus,
   Pagination,
   ScholarDueItem,
+  Semester,
   SRCMemberRole,
   SRCCommittee,
+  StudentCourse,
   StudentProfileView,
   SupervisorRecord,
 } from '../types';
@@ -96,6 +100,47 @@ export const adminApi = {
     apiFetch<Internship[]>('/admin/internships', { signal: opts?.signal }),
   adminReviewInternship: (id: string, payload: { status: 'admin_approved' | 'rejected'; adminComment?: string }) =>
     apiFetch<Internship>(`/admin/internships/${id}/review`, { method: 'PUT', body: payload }),
-  reviewInternship: (id: string, payload: { status: 'admin_approved' | 'rejected'; adminComment?: string }) =>
-    apiFetch<Internship>(`/admin/internships/${id}/review`, { method: 'PUT', body: payload }),
+  getStudentCourses: (studentId: string, opts?: ApiOpts) =>
+    apiFetch<{ semesters: Semester[]; studentCourses: StudentCourse[]; credits: Credits[] }>(
+      `/admin/students/${studentId}/courses`,
+      { signal: opts?.signal }
+    ),
+  addStudentCourse: (
+    studentId: string,
+    data: {
+      semesterId?: string;
+      semesterNumber?: number;
+      academicYear?: string;
+      courseCode: string;
+      courseName: string;
+      credits: number;
+      status?: string;
+      grade?: string;
+    }
+  ) =>
+    apiFetch<{ studentCourse: StudentCourse; course: Course }>(
+      `/admin/students/${studentId}/courses`,
+      { method: 'POST', body: data }
+    ),
+  updateStudentCourse: (
+    studentId: string,
+    studentCourseId: string,
+    data: {
+      courseCode?: string;
+      courseName?: string;
+      credits?: number;
+      status?: string;
+      grade?: string;
+      semesterId?: string;
+    }
+  ) =>
+    apiFetch<{ studentCourse: StudentCourse; course: Course }>(
+      `/admin/students/${studentId}/courses/${studentCourseId}`,
+      { method: 'PUT', body: data }
+    ),
+  deleteStudentCourse: (studentId: string, studentCourseId: string) =>
+    apiFetch<{ message?: string }>(
+      `/admin/students/${studentId}/courses/${studentCourseId}`,
+      { method: 'DELETE' }
+    ),
 };

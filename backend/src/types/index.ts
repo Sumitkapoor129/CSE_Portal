@@ -17,6 +17,7 @@ export enum ApprovalStatus {
   APPROVED = 'approved',
   REJECTED = 'rejected',
   RESUBMISSION_REQUIRED = 'resubmission_required',
+  COMPLETED = 'completed',
 }
 
 export enum ThesisStatus {
@@ -42,6 +43,14 @@ export enum SRCMemberRole {
   SUPERVISOR = 'supervisor',
   CO_SUPERVISOR = 'co_supervisor',
   MEMBER = 'member',
+  EXTERNAL_MEMBER = 'external_member',
+}
+
+export enum StudentProgram {
+  BTECH = 'btech',
+  MTECH = 'mtech',
+  MCA = 'mca',
+  PHD = 'phd',
 }
 
 export enum MilestoneStatus {
@@ -90,6 +99,7 @@ export interface IStudentProfile {
   collegeId: string;
   rollNumber: string;
   studentType: StudentType;
+  program?: StudentProgram | string;
   department: string;
   researchArea: string;
   admissionDate: Date;
@@ -116,6 +126,7 @@ export interface IFacultyProfile {
   employeeId: string;
   department: string;
   designation: string;
+  isHod?: boolean;
   researchAreas: string[];
   profilePhoto?: string;
 }

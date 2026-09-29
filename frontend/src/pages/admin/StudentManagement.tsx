@@ -22,13 +22,21 @@ import { QueryError } from '../../components/shared/QueryError';
 import { formatDate } from '../../utils/formatDate';
 import {
   ACTIVE_STATUS_STYLE,
+  APPROVAL_STATUS_LABELS,
+  APPROVAL_STATUS_STYLE,
   INACTIVE_STATUS_STYLE,
   MILESTONE_STATUS_LABELS,
   MILESTONE_STATUS_STYLE,
   STUDENT_TYPE_LABELS,
   STUDENT_TYPE_OPTIONS,
 } from '../../utils/constants';
-import type { Milestone, MilestoneStatus, StudentProfileView, StudentType } from '../../types';
+import type {
+  Milestone,
+  MilestoneStatus,
+  StudentCourse,
+  StudentProfileView,
+  StudentType,
+} from '../../types';
 
 const EMPTY_CREATE_FORM = {
   email: '',
@@ -87,6 +95,32 @@ export function StudentManagement(): JSX.Element {
   const [milestonesError, setMilestonesError] = useState<string | null>(null);
   const [updatingMilestoneId, setUpdatingMilestoneId] = useState<string | null>(null);
   const [milestoneActionError, setMilestoneActionError] = useState<string | null>(null);
+
+  // Admin direct student course management states
+  const [coursesStudent, setCoursesStudent] = useState<StudentProfileView | null>(null);
+  const [coursesLoading, setCoursesLoading] = useState(false);
+  const [coursesError, setCoursesError] = useState<string | null>(null);
+  const [studentCourses, setStudentCourses] = useState<StudentCourse[]>([]);
+  const [courseActionError, setCourseActionError] = useState<string | null>(null);
+  const [courseActionSuccess, setCourseActionSuccess] = useState<string | null>(null);
+
+  // Add course form state
+  const [newSemesterNumber, setNewSemesterNumber] = useState<number>(1);
+  const [newCourseCode, setNewCourseCode] = useState('');
+  const [newCourseName, setNewCourseName] = useState('');
+  const [newCourseCredits, setNewCourseCredits] = useState<number>(4);
+  const [newCourseStatus, setNewCourseStatus] = useState<string>('completed');
+  const [newCourseGrade, setNewCourseGrade] = useState('');
+  const [addingCourse, setAddingCourse] = useState(false);
+
+  // Edit course state
+  const [editingCourseId, setEditingCourseId] = useState<string | null>(null);
+  const [editCourseCode, setEditCourseCode] = useState('');
+  const [editCourseName, setEditCourseName] = useState('');
+  const [editCourseCredits, setEditCourseCredits] = useState<number>(4);
+  const [editCourseStatus, setEditCourseStatus] = useState<string>('completed');
+  const [editCourseGrade, setEditCourseGrade] = useState('');
+  const [savingCourse, setSavingCourse] = useState(false);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -180,9 +214,9 @@ export function StudentManagement(): JSX.Element {
       setSuccessMessage('Student created successfully.');
       setPage(1);
       refetch();
-    } catch {
+    } catch (err: unknown) {
       setCreating(false);
-      setCreateError('Unable to create the student. Please try again.');
+      setCreateError(err instanceof Error ? err.message : 'Unable to create the student. Please try again.');
     }
   };
 
@@ -228,9 +262,9 @@ export function StudentManagement(): JSX.Element {
       closeEdit();
       setSuccessMessage('Student updated successfully.');
       refetch();
-    } catch {
+    } catch (err: unknown) {
       setSavingEdit(false);
-      setEditError('Unable to update the student. Please try again.');
+      setEditError(err instanceof Error ? err.message : 'Unable to update the student. Please try again.');
     }
   };
 
@@ -246,9 +280,9 @@ export function StudentManagement(): JSX.Element {
       setConfirmStudent(null);
       setToggling(false);
       refetch();
-    } catch {
+    } catch (err: unknown) {
       setToggling(false);
-      setToggleError('Unable to update account status. Please try again.');
+      setToggleError(err instanceof Error ? err.message : 'Unable to update account status. Please try again.');
     }
   };
 
@@ -290,6 +324,137 @@ export function StudentManagement(): JSX.Element {
       setMilestoneActionError(err instanceof Error ? err.message : 'Failed to update milestone status.');
     } finally {
       setUpdatingMilestoneId(null);
+    }
+  };
+
+  const fetchStudentCourses = async (studentId: string) => {
+    const res = await adminApi.getStudentCourses(studentId);
+    setStudentCourses(res.studentCourses || []);
+  };
+
+  const openCourses = async (student: StudentProfileView) => {
+    setCoursesStudent(student);
+    setCoursesLoading(true);
+    setCoursesError(null);
+    setCourseActionError(null);
+    setCourseActionSuccess(null);
+    setEditingCourseId(null);
+    setNewCourseCode('');
+    setNewCourseName('');
+    setNewCourseCredits(4);
+    setNewCourseStatus('completed');
+    setNewCourseGrade('');
+    setNewSemesterNumber(1);
+    try {
+      await fetchStudentCourses(student._id);
+    } catch (err) {
+      setCoursesError(err instanceof Error ? err.message : 'Failed to load courses.');
+    } finally {
+      setCoursesLoading(false);
+    }
+  };
+
+  const closeCourses = () => {
+    setCoursesStudent(null);
+    setStudentCourses([]);
+    setCoursesError(null);
+    setCourseActionError(null);
+    setCourseActionSuccess(null);
+    setEditingCourseId(null);
+  };
+
+  const handleAddCourse = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!coursesStudent || addingCourse) return;
+    if (!newCourseCode.trim() || !newCourseName.trim()) {
+      setCourseActionError('Course code and name are required.');
+      return;
+    }
+    setAddingCourse(true);
+    setCourseActionError(null);
+    setCourseActionSuccess(null);
+    try {
+      await adminApi.addStudentCourse(coursesStudent._id, {
+        semesterNumber: Number(newSemesterNumber) || 1,
+        courseCode: newCourseCode.trim().toUpperCase(),
+        courseName: newCourseName.trim(),
+        credits: Number(newCourseCredits) || 0,
+        status: newCourseStatus,
+        grade: newCourseGrade.trim() || undefined,
+      });
+      setNewCourseCode('');
+      setNewCourseName('');
+      setNewCourseGrade('');
+      setCourseActionSuccess('Course added directly and credits awarded immediately.');
+      await fetchStudentCourses(coursesStudent._id);
+    } catch (err) {
+      setCourseActionError(err instanceof Error ? err.message : 'Failed to add course.');
+    } finally {
+      setAddingCourse(false);
+    }
+  };
+
+  const startEditCourse = (sc: StudentCourse) => {
+    const courseObj = typeof sc.course === 'object' && sc.course !== null ? sc.course : null;
+    setEditingCourseId(sc._id);
+    setEditCourseCode(courseObj?.courseCode || '');
+    setEditCourseName(courseObj?.courseName || '');
+    setEditCourseCredits(courseObj?.credits ?? 4);
+    setEditCourseStatus(sc.status);
+    setEditCourseGrade(courseObj?.grade || '');
+    setCourseActionError(null);
+    setCourseActionSuccess(null);
+  };
+
+  const handleSaveEditCourse = async (studentCourseId: string) => {
+    if (!coursesStudent || savingCourse) return;
+    setSavingCourse(true);
+    setCourseActionError(null);
+    setCourseActionSuccess(null);
+    try {
+      await adminApi.updateStudentCourse(coursesStudent._id, studentCourseId, {
+        courseCode: editCourseCode.trim().toUpperCase(),
+        courseName: editCourseName.trim(),
+        credits: Number(editCourseCredits),
+        status: editCourseStatus,
+        grade: editCourseGrade.trim() || undefined,
+      });
+      setEditingCourseId(null);
+      setCourseActionSuccess('Course updated successfully.');
+      await fetchStudentCourses(coursesStudent._id);
+    } catch (err) {
+      setCourseActionError(err instanceof Error ? err.message : 'Failed to update course.');
+    } finally {
+      setSavingCourse(false);
+    }
+  };
+
+  const handleDeleteCourse = async (studentCourseId: string) => {
+    if (!coursesStudent) return;
+    setCourseActionError(null);
+    setCourseActionSuccess(null);
+    try {
+      await adminApi.deleteStudentCourse(coursesStudent._id, studentCourseId);
+      setCourseActionSuccess('Course deleted successfully.');
+      await fetchStudentCourses(coursesStudent._id);
+    } catch (err) {
+      setCourseActionError(err instanceof Error ? err.message : 'Failed to delete course.');
+    }
+  };
+
+  const handleToggleCourseStatus = async (sc: StudentCourse) => {
+    if (!coursesStudent) return;
+    const newStatus = sc.status === 'completed' ? 'approved' : 'completed';
+    setCourseActionError(null);
+    setCourseActionSuccess(null);
+    try {
+      await adminApi.updateStudentCourse(coursesStudent._id, sc._id, {
+        status: newStatus,
+      });
+      setCourseActionSuccess(`Course status changed to ${newStatus}.`);
+      await fetchStudentCourses(coursesStudent._id);
+    } catch (err) {
+      setCourseActionError(err instanceof Error ? err.message : 'Failed to toggle course status.');
     }
   };
 
@@ -358,6 +523,7 @@ export function StudentManagement(): JSX.Element {
       {!loading && !error && (
         <Card title="Students" padded={false}>
           <Table
+            ariaLabel="Students Directory"
             columns={[
               { key: 'photo', header: 'Photo' },
               { key: 'name', header: 'Name' },
@@ -390,10 +556,28 @@ export function StudentManagement(): JSX.Element {
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
-                      <Button variant="secondary" size="sm" onClick={() => openMilestones(student)}>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        aria-label={`Manage courses for ${student.user?.name || student.rollNumber}`}
+                        onClick={() => openCourses(student)}
+                      >
+                        Manage Courses
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        aria-label={`View milestones for ${student.user?.name || student.rollNumber}`}
+                        onClick={() => openMilestones(student)}
+                      >
                         Milestones
                       </Button>
-                      <Button variant="secondary" size="sm" onClick={() => openEdit(student)}>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        aria-label={`Edit student ${student.user?.name || student.rollNumber}`}
+                        onClick={() => openEdit(student)}
+                      >
                         Edit
                       </Button>
                       <Button
@@ -635,7 +819,7 @@ export function StudentManagement(): JSX.Element {
                     {milestone.description && (
                       <p className="mt-0.5 text-xs text-gray-500">{milestone.description}</p>
                     )}
-                    <div className="mt-1 flex flex-wrap gap-3 text-xs text-gray-400">
+                    <div className="mt-1 flex flex-wrap gap-3 text-xs text-gray-500">
                       {milestone.dueDate && <span>Due: {formatDate(milestone.dueDate)}</span>}
                       {milestone.completedAt && (
                         <span className="text-emerald-600">Completed: {formatDate(milestone.completedAt)}</span>
@@ -677,6 +861,267 @@ export function StudentManagement(): JSX.Element {
 
           <div className="flex justify-end border-t border-gray-100 pt-3">
             <Button variant="secondary" onClick={closeMilestones}>
+              Close
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        open={coursesStudent !== null}
+        onClose={closeCourses}
+        title={coursesStudent ? `Manage Courses — ${coursesStudent.user?.name ?? 'Scholar'}` : 'Manage Courses'}
+      >
+        <div className="space-y-5">
+          {coursesStudent && (
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 pb-3 text-xs text-gray-500">
+              <span>Roll No: <strong className="text-gray-700">{coursesStudent.rollNumber}</strong></span>
+              <span>College ID: <strong className="text-gray-700">{coursesStudent.collegeId}</strong></span>
+              <span>Department: <strong className="text-gray-700">{coursesStudent.department}</strong></span>
+            </div>
+          )}
+
+          {/* Credits Summary Banner */}
+          {(() => {
+            const earned = studentCourses
+              .filter((sc) => sc.status === 'completed' || sc.status === 'approved')
+              .reduce((sum, sc) => {
+                const c = typeof sc.course === 'object' && sc.course !== null ? sc.course : null;
+                return sum + (c?.credits || 0);
+              }, 0);
+            const required = coursesStudent?.requiredCredits || 12;
+
+            return (
+              <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-blue-200 bg-blue-50/60 p-4">
+                <div>
+                  <div className="text-xs font-semibold uppercase tracking-wider text-blue-800">
+                    Academic Credits Summary
+                  </div>
+                  <div className="mt-1 text-2xl font-bold text-gray-900">
+                    {earned} <span className="text-sm font-normal text-gray-600">/ {required} credits required</span>
+                  </div>
+                </div>
+                <div>
+                  <span
+                    className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${
+                      earned >= required
+                        ? 'bg-emerald-100 text-emerald-800'
+                        : 'bg-amber-100 text-amber-800'
+                    }`}
+                  >
+                    {earned >= required ? 'Requirement Fulfilled' : `${required - earned} Credits Remaining`}
+                  </span>
+                </div>
+              </div>
+            );
+          })()}
+
+          {courseActionSuccess && (
+            <Alert variant="success" onDismiss={() => setCourseActionSuccess(null)}>
+              {courseActionSuccess}
+            </Alert>
+          )}
+          {courseActionError && (
+            <Alert variant="error" onDismiss={() => setCourseActionError(null)}>
+              {courseActionError}
+            </Alert>
+          )}
+          {coursesError && <Alert variant="error">{coursesError}</Alert>}
+
+          {/* Add Course Directly Form */}
+          <div className="rounded-lg border border-gray-200 bg-gray-50/50 p-4">
+            <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-700 mb-3">
+              Add Course Directly (Awards Credits Immediately)
+            </h4>
+            <form onSubmit={handleAddCourse} className="space-y-3">
+              <div className="grid gap-3 sm:grid-cols-3">
+                <Input
+                  id="direct-course-sem"
+                  label="Semester No."
+                  type="number"
+                  min={1}
+                  value={String(newSemesterNumber)}
+                  onChange={(e) => setNewSemesterNumber(Math.max(1, Number(e.target.value)))}
+                />
+                <Input
+                  id="direct-course-code"
+                  label="Course Code"
+                  placeholder="e.g. CS601"
+                  value={newCourseCode}
+                  onChange={(e) => setNewCourseCode(e.target.value)}
+                />
+                <Input
+                  id="direct-course-name"
+                  label="Course Name"
+                  placeholder="e.g. Advanced Algorithms"
+                  value={newCourseName}
+                  onChange={(e) => setNewCourseName(e.target.value)}
+                />
+              </div>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <Input
+                  id="direct-course-credits"
+                  label="Credits"
+                  type="number"
+                  min={1}
+                  value={String(newCourseCredits)}
+                  onChange={(e) => setNewCourseCredits(Math.max(0, Number(e.target.value)))}
+                />
+                <Select
+                  id="direct-course-status"
+                  label="Status"
+                  value={newCourseStatus}
+                  onChange={(e) => setNewCourseStatus(e.target.value)}
+                  options={[
+                    { value: 'completed', label: 'Completed (Immediate Credits)' },
+                    { value: 'approved', label: 'Approved' },
+                    { value: 'pending', label: 'Pending' },
+                  ]}
+                />
+                <Input
+                  id="direct-course-grade"
+                  label="Grade (Optional)"
+                  placeholder="e.g. A, S, B+"
+                  value={newCourseGrade}
+                  onChange={(e) => setNewCourseGrade(e.target.value)}
+                />
+              </div>
+              <div className="flex justify-end pt-1">
+                <Button type="submit" size="sm" disabled={addingCourse}>
+                  {addingCourse ? 'Adding Course…' : '+ Add Course Directly'}
+                </Button>
+              </div>
+            </form>
+          </div>
+
+          {/* Student Courses List */}
+          <div>
+            <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-700 mb-2">
+              Registered Courses ({studentCourses.length})
+            </h4>
+
+            {coursesLoading ? (
+              <div className="py-8 text-center text-sm text-gray-500">Loading scholar courses…</div>
+            ) : studentCourses.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-gray-200 py-6 text-center text-sm text-gray-500">
+                No courses added for this scholar yet.
+              </div>
+            ) : (
+              <div className="space-y-3 max-h-[45vh] overflow-y-auto pr-1">
+                {studentCourses.map((sc) => {
+                  const courseObj = typeof sc.course === 'object' && sc.course !== null ? sc.course : null;
+                  const semObj = typeof sc.semester === 'object' && sc.semester !== null ? sc.semester : null;
+                  const isEditing = editingCourseId === sc._id;
+
+                  if (isEditing) {
+                    return (
+                      <div key={sc._id} className="rounded-lg border border-blue-300 bg-blue-50/40 p-3 space-y-3">
+                        <div className="grid gap-2 sm:grid-cols-4">
+                          <Input
+                            id={`edit-c-code-${sc._id}`}
+                            label="Code"
+                            value={editCourseCode}
+                            onChange={(e) => setEditCourseCode(e.target.value)}
+                          />
+                          <div className="sm:col-span-2">
+                            <Input
+                              id={`edit-c-name-${sc._id}`}
+                              label="Name"
+                              value={editCourseName}
+                              onChange={(e) => setEditCourseName(e.target.value)}
+                            />
+                          </div>
+                          <Input
+                            id={`edit-c-cred-${sc._id}`}
+                            label="Credits"
+                            type="number"
+                            value={String(editCourseCredits)}
+                            onChange={(e) => setEditCourseCredits(Number(e.target.value))}
+                          />
+                        </div>
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          <Select
+                            id={`edit-c-status-${sc._id}`}
+                            label="Status"
+                            value={editCourseStatus}
+                            onChange={(e) => setEditCourseStatus(e.target.value)}
+                            options={[
+                              { value: 'completed', label: 'Completed' },
+                              { value: 'approved', label: 'Approved' },
+                              { value: 'pending', label: 'Pending' },
+                            ]}
+                          />
+                          <Input
+                            id={`edit-c-grade-${sc._id}`}
+                            label="Grade"
+                            value={editCourseGrade}
+                            onChange={(e) => setEditCourseGrade(e.target.value)}
+                          />
+                        </div>
+                        <div className="flex justify-end gap-2">
+                          <Button variant="secondary" size="sm" onClick={() => setEditingCourseId(null)}>
+                            Cancel
+                          </Button>
+                          <Button size="sm" disabled={savingCourse} onClick={() => handleSaveEditCourse(sc._id)}>
+                            {savingCourse ? 'Saving…' : 'Save Changes'}
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div
+                      key={sc._id}
+                      className="flex flex-col gap-3 rounded-lg border border-gray-200 bg-white p-3 sm:flex-row sm:items-center sm:justify-between"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-gray-900">{courseObj?.courseCode || '—'}</span>
+                          <span className="text-sm text-gray-800">{courseObj?.courseName || '—'}</span>
+                          <Badge
+                            label={APPROVAL_STATUS_LABELS[sc.status] ?? sc.status}
+                            className={APPROVAL_STATUS_STYLE[sc.status]}
+                          />
+                        </div>
+                        <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-gray-500">
+                          <span>Semester: <strong>{semObj?.semesterNumber ?? '—'}</strong></span>
+                          <span>Credits: <strong>{courseObj?.credits ?? 0}</strong></span>
+                          {courseObj?.grade && <span>Grade: <strong className="text-gray-700">{courseObj.grade}</strong></span>}
+                        </div>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-2">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => handleToggleCourseStatus(sc)}
+                        >
+                          {sc.status === 'completed' ? 'Mark Approved' : 'Mark Completed'}
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => startEditCourse(sc)}
+                        >
+                          Edit
+                        </Button>
+                        <Button
+                          variant="danger"
+                          size="sm"
+                          onClick={() => handleDeleteCourse(sc._id)}
+                        >
+                          Delete
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <div className="flex justify-end border-t border-gray-100 pt-3">
+            <Button variant="secondary" onClick={closeCourses}>
               Close
             </Button>
           </div>

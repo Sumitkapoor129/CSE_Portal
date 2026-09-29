@@ -27,21 +27,24 @@ import {
   formatFaculty,
   INTERNSHIP_STATUS_LABELS,
   INTERNSHIP_STATUS_STYLE,
+  MILESTONE_STATUS_LABELS,
+  MILESTONE_STATUS_STYLE,
   SRC_ROLE_LABELS,
   STUDENT_TYPE_LABELS,
   THESIS_STATUS_LABELS,
   THESIS_STATUS_STYLE,
 } from '../../utils/constants';
-import type { ComprehensiveExamResult, Internship, Thesis } from '../../types';
+import type { ComprehensiveExamResult, Internship, Semester, Thesis } from '../../types';
 
 type ThesisDecision = 'approved' | 'rejected' | 'resubmission_required';
-type StudentDetailTab = 'profile' | 'academics' | 'documents' | 'thesis' | 'src' | 'ordinance';
+type StudentDetailTab = 'profile' | 'academics' | 'milestones' | 'documents' | 'thesis' | 'src' | 'ordinance';
 
 export function StudentDetail(): JSX.Element {
   const { user } = useAuth();
   const { studentId } = useParams<{ studentId: string }>();
 
   const [active, setActive] = useState<StudentDetailTab>('profile');
+  const [docSemesterFilter, setDocSemesterFilter] = useState('');
   const [decisionThesis, setDecisionThesis] = useState<Thesis | null>(null);
   const [decisionStatus, setDecisionStatus] = useState<ThesisDecision>('approved');
   const [comment, setComment] = useState('');
@@ -70,22 +73,34 @@ export function StudentDetail(): JSX.Element {
     [studentId]
   );
 
-  const {
-    data: allScholarInternships,
-    loading: internshipsLoading,
-    refetch: refetchInternships,
-  } = useApi(supervisorApi.listScholarInternships);
+  const studentInternships = data?.internships ?? [];
 
-  const studentInternships = useMemo(() => {
-    if (data?.internships && data.internships.length > 0) {
-      return data.internships;
+  const docSemesters = useMemo(() => {
+    if (!data) return [];
+    if (data.semesters && data.semesters.length > 0) {
+      return data.semesters.map((s) => s.semesterNumber).sort((a, b) => a - b);
     }
-    if (!allScholarInternships || !studentId) return [];
-    return allScholarInternships.filter((item) => {
-      const sId = typeof item.student === 'object' && item.student !== null ? item.student._id : item.student;
-      return sId === studentId;
+    const set = new Set<number>();
+    data.documents.forEach((d) => {
+      const sem = typeof d.semester === 'object' && d.semester !== null ? (d.semester as Semester).semesterNumber : undefined;
+      if (sem !== undefined) set.add(Number(sem));
     });
-  }, [data?.internships, allScholarInternships, studentId]);
+    return Array.from(set).sort((a, b) => a - b);
+  }, [data]);
+
+  const processedDocuments = useMemo(() => {
+    if (!data?.documents) return [];
+    const docs = [...data.documents];
+    // Default sort: most recent documents first
+    docs.sort((a, b) => new Date(b.uploadDate || 0).getTime() - new Date(a.uploadDate || 0).getTime());
+    if (docSemesterFilter) {
+      return docs.filter((d) => {
+        const sem = typeof d.semester === 'object' && d.semester !== null ? (d.semester as Semester).semesterNumber : undefined;
+        return String(sem) === docSemesterFilter;
+      });
+    }
+    return docs;
+  }, [data?.documents, docSemesterFilter]);
 
   if (user?.role !== 'supervisor') return <Navigate to="/" replace />;
 
@@ -163,7 +178,7 @@ export function StudentDetail(): JSX.Element {
       setInternshipComment('');
       setInternshipSubmitting(false);
       setSuccessMessage(`Internship review decision recorded.`);
-      refetchInternships();
+      refetch();
     } catch (err: unknown) {
       setInternshipSubmitting(false);
       setInternshipError(err instanceof Error ? err.message : 'Failed to review internship.');
@@ -211,7 +226,8 @@ export function StudentDetail(): JSX.Element {
           <Tabs
             tabs={[
               { key: 'profile', label: 'Profile' },
-              { key: 'academics', label: 'Academics' },
+              { key: 'academics', label: 'Course Work' },
+              { key: 'milestones', label: 'Milestones' },
               { key: 'documents', label: 'Documents' },
               { key: 'thesis', label: 'Thesis' },
               { key: 'src', label: 'SRC' },
@@ -312,10 +328,99 @@ export function StudentDetail(): JSX.Element {
               </div>
             )}
 
+            {active === 'milestones' && (
+              <div className="space-y-6">
+                {(!data.milestones || data.milestones.length === 0) ? (
+                  <Card>
+                    <EmptyState title="No milestones recorded" message="Milestone timeline has not been generated for this scholar." />
+                  </Card>
+                ) : (
+                  <Card title="PhD Milestone Timeline">
+                    <ol className="relative border-l border-gray-200 ml-4 mt-2 space-y-6">
+                      {[...data.milestones]
+                        .sort((a, b) => a.order - b.order)
+                        .map((milestone) => {
+                          const isCompleted = milestone.status === 'completed';
+                          return (
+                            <li key={milestone._id} className="ml-6">
+                              <span
+                                className={`absolute -left-3 flex h-6 w-6 items-center justify-center rounded-full ring-4 ring-white ${
+                                  isCompleted
+                                    ? 'bg-green-600 text-white'
+                                    : milestone.status === 'in_progress'
+                                      ? 'bg-blue-600 text-white'
+                                      : 'bg-gray-200 text-gray-600'
+                                }`}
+                              >
+                                {isCompleted ? (
+                                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                  </svg>
+                                ) : (
+                                  <span className="text-xs font-bold">{milestone.order}</span>
+                                )}
+                              </span>
+                              <div className="flex flex-col gap-2 rounded-lg border border-gray-100 bg-gray-50/50 p-4 sm:flex-row sm:items-center sm:justify-between">
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-2">
+                                    <h4 className="text-sm font-semibold text-gray-900">{milestone.title}</h4>
+                                    <Badge
+                                      label={MILESTONE_STATUS_LABELS[milestone.status] ?? milestone.status}
+                                      className={MILESTONE_STATUS_STYLE[milestone.status]}
+                                    />
+                                  </div>
+                                  {milestone.description && (
+                                    <p className="mt-1 text-xs text-gray-600">{milestone.description}</p>
+                                  )}
+                                  <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500">
+                                    {milestone.dueDate && <span>Target Due: {formatDate(milestone.dueDate)}</span>}
+                                    {milestone.completedAt && (
+                                      <span className="text-green-700 font-medium">Completed: {formatDate(milestone.completedAt)}</span>
+                                    )}
+                                    {milestone.regulation && (
+                                      <span className="text-gray-500 italic">({milestone.regulation})</span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </li>
+                          );
+                        })}
+                    </ol>
+                  </Card>
+                )}
+              </div>
+            )}
+
             {active === 'documents' && (
-              <Card title="Documents" padded={false}>
-                {data.documents.length === 0 ? (
-                  <EmptyState title="No documents" message="No documents uploaded by this scholar." />
+              <Card
+                title="Documents"
+                padded={false}
+                actions={
+                  docSemesters.length > 0 ? (
+                    <div className="flex items-center gap-2">
+                      <label htmlFor="doc-sem-filter" className="text-xs text-gray-500 font-medium">
+                        Semester:
+                      </label>
+                      <select
+                        id="doc-sem-filter"
+                        value={docSemesterFilter}
+                        onChange={(e) => setDocSemesterFilter(e.target.value)}
+                        className="rounded-md border border-gray-300 bg-white py-1 px-2.5 text-xs text-gray-700 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      >
+                        <option value="">All Semesters</option>
+                        {docSemesters.map((semNum) => (
+                          <option key={semNum} value={String(semNum)}>
+                            Semester {semNum}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  ) : undefined
+                }
+              >
+                {processedDocuments.length === 0 ? (
+                  <EmptyState title="No documents" message={docSemesterFilter ? "No documents found for this semester." : "No documents uploaded by this scholar."} />
                 ) : (
                   <Table
                     ariaLabel="Scholar Documents"
@@ -327,7 +432,7 @@ export function StudentDetail(): JSX.Element {
                       { key: 'link', header: 'Open' },
                     ]}
                   >
-                    {data.documents.map((document) => (
+                    {processedDocuments.map((document) => (
                       <TableRow key={document._id}>
                         <TableCell className="font-medium text-gray-900">{document.documentName}</TableCell>
                         <TableCell className="text-gray-700">{document.documentType}</TableCell>
@@ -519,83 +624,77 @@ export function StudentDetail(): JSX.Element {
 
                 {/* Internships & Leave Review Section */}
                 <Card title="Internships & Research Leave Requests" padded={false}>
-                  {internshipsLoading ? (
-                    <div className="p-4">
-                      <SkeletonCards count={2} />
-                    </div>
-                  ) : (
-                    <Table
-                      ariaLabel="Scholar Internships"
-                      columns={[
-                        { key: 'org', header: 'Organization' },
-                        { key: 'topic', header: 'Research Topic' },
-                        { key: 'duration', header: 'Duration' },
-                        { key: 'dates', header: 'Start / End Dates' },
-                        { key: 'status', header: 'Status' },
-                        { key: 'supervisorComment', header: 'Supervisor Comment' },
-                        { key: 'adminComment', header: 'Admin Comment' },
-                        { key: 'actions', header: 'Action' },
-                      ]}
-                    >
-                      {studentInternships.length === 0 ? (
-                        <TableEmpty colSpan={8} message="No internship or research leave requests from this scholar." />
-                      ) : (
-                        studentInternships.map((intern) => (
-                          <TableRow key={intern._id}>
-                            <TableCell className="font-medium text-gray-900">{intern.organization}</TableCell>
-                            <TableCell className="text-gray-700">{intern.researchTopic}</TableCell>
-                            <TableCell className="text-gray-700">{intern.durationMonths} months</TableCell>
-                            <TableCell className="text-xs text-gray-500 whitespace-nowrap">
-                              {formatDate(intern.startDate)} – {formatDate(intern.endDate)}
-                            </TableCell>
-                            <TableCell>
-                              <Badge
-                                label={INTERNSHIP_STATUS_LABELS[intern.status]}
-                                className={INTERNSHIP_STATUS_STYLE[intern.status]}
-                              />
-                            </TableCell>
-                            <TableCell className="text-xs text-gray-600">
-                              {intern.supervisorComment || '—'}
-                            </TableCell>
-                            <TableCell className="text-xs text-gray-600">
-                              {intern.adminComment || '—'}
-                            </TableCell>
-                            <TableCell>
-                              {intern.status === 'pending' ? (
-                                <div className="flex gap-2">
-                                  <Button
-                                    size="sm"
-                                    onClick={() => {
-                                      setReviewingInternship(intern);
-                                      setInternshipDecision('supervisor_approved');
-                                      setInternshipComment('');
-                                      setInternshipError(null);
-                                    }}
-                                  >
-                                    Approve
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="secondary"
-                                    onClick={() => {
-                                      setReviewingInternship(intern);
-                                      setInternshipDecision('rejected');
-                                      setInternshipComment('');
-                                      setInternshipError(null);
-                                    }}
-                                  >
-                                    Reject
-                                  </Button>
-                                </div>
-                              ) : (
-                                <span className="text-xs text-gray-400">Processed</span>
-                              )}
-                            </TableCell>
-                          </TableRow>
-                        ))
-                      )}
-                    </Table>
-                  )}
+                  <Table
+                    ariaLabel="Scholar Internships"
+                    columns={[
+                      { key: 'org', header: 'Organization' },
+                      { key: 'topic', header: 'Research Topic' },
+                      { key: 'duration', header: 'Duration' },
+                      { key: 'dates', header: 'Start / End Dates' },
+                      { key: 'status', header: 'Status' },
+                      { key: 'supervisorComment', header: 'Supervisor Comment' },
+                      { key: 'adminComment', header: 'Admin Comment' },
+                      { key: 'actions', header: 'Action' },
+                    ]}
+                  >
+                    {studentInternships.length === 0 ? (
+                      <TableEmpty colSpan={8} message="No internship or research leave requests from this scholar." />
+                    ) : (
+                      studentInternships.map((intern) => (
+                        <TableRow key={intern._id}>
+                          <TableCell className="font-medium text-gray-900">{intern.organization}</TableCell>
+                          <TableCell className="text-gray-700">{intern.researchTopic}</TableCell>
+                          <TableCell className="text-gray-700">{intern.durationMonths} months</TableCell>
+                          <TableCell className="text-xs text-gray-500 whitespace-nowrap">
+                            {formatDate(intern.startDate)} – {formatDate(intern.endDate)}
+                          </TableCell>
+                          <TableCell>
+                            <Badge
+                              label={INTERNSHIP_STATUS_LABELS[intern.status]}
+                              className={INTERNSHIP_STATUS_STYLE[intern.status]}
+                            />
+                          </TableCell>
+                          <TableCell className="text-xs text-gray-600">
+                            {intern.supervisorComment || '—'}
+                          </TableCell>
+                          <TableCell className="text-xs text-gray-600">
+                            {intern.adminComment || '—'}
+                          </TableCell>
+                          <TableCell>
+                            {intern.status === 'pending' ? (
+                              <div className="flex gap-2">
+                                <Button
+                                  size="sm"
+                                  onClick={() => {
+                                    setReviewingInternship(intern);
+                                    setInternshipDecision('supervisor_approved');
+                                    setInternshipComment('');
+                                    setInternshipError(null);
+                                  }}
+                                >
+                                  Approve
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="secondary"
+                                  onClick={() => {
+                                    setReviewingInternship(intern);
+                                    setInternshipDecision('rejected');
+                                    setInternshipComment('');
+                                    setInternshipError(null);
+                                  }}
+                                >
+                                  Reject
+                                </Button>
+                              </div>
+                            ) : (
+                              <span className="text-xs text-gray-500">Processed</span>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </Table>
                 </Card>
               </div>
             )}

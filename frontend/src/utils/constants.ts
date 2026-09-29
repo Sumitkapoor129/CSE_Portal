@@ -39,6 +39,7 @@ export const APPROVAL_STATUS_LABELS: Record<ApprovalStatus, string> = {
   approved: 'Approved',
   rejected: 'Rejected',
   resubmission_required: 'Resubmission Required',
+  completed: 'Completed',
 };
 
 export const THESIS_STATUS_LABELS: Record<ThesisStatus, string> = {
@@ -78,6 +79,7 @@ export const SRC_ROLE_LABELS: Record<SRCMemberRole, string> = {
   supervisor: 'Supervisor',
   co_supervisor: 'Co-supervisor',
   member: 'Member',
+  external_member: 'External Member (Outside CSE)',
 };
 
 export function formatFaculty(faculty: FacultyShort | string | null | undefined): string {
@@ -141,6 +143,7 @@ export const APPROVAL_STATUS_STYLE: Record<ApprovalStatus, string> = {
   approved: `${badge} bg-green-50 text-green-700 border-green-200`,
   rejected: `${badge} bg-red-50 text-red-700 border-red-200`,
   resubmission_required: `${badge} bg-blue-50 text-blue-700 border-blue-200`,
+  completed: `${badge} bg-emerald-50 text-emerald-700 border-emerald-200`,
 };
 
 export const ACTIVE_STATUS_STYLE =

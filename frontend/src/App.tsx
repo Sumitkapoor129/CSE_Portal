@@ -33,8 +33,6 @@ const FacultyManagement = lazy(() => import('./pages/admin/FacultyManagement'));
 const SupervisorAssignment = lazy(() => import('./pages/admin/SupervisorAssignment'));
 const SrcCommitteeManagement = lazy(() => import('./pages/admin/SrcCommitteeManagement'));
 const FormManagement = lazy(() => import('./pages/admin/FormManagement'));
-const DeadlineManagement = lazy(() => import('./pages/admin/DeadlineManagement'));
-const EventManagement = lazy(() => import('./pages/admin/EventManagement'));
 const GlobalSearch = lazy(() => import('./pages/admin/GlobalSearch'));
 const BulkImport = lazy(() => import('./pages/admin/BulkImport'));
 
@@ -64,8 +62,6 @@ const ROUTE_TITLES: Record<string, string> = {
   '/admin/assignments': 'Supervisor Assignments',
   '/admin/src-committees': 'SRC Committee',
   '/admin/forms': 'Form Builder',
-  '/admin/deadlines': 'Deadline Management',
-  '/admin/events': 'Event Management',
   '/admin/search': 'Global Search',
 };
 
@@ -134,8 +130,6 @@ export default function App() {
                     <Route path="assignments" element={<SupervisorAssignment />} />
                     <Route path="src-committees" element={<SrcCommitteeManagement />} />
                     <Route path="forms" element={<FormManagement />} />
-                    <Route path="deadlines" element={<DeadlineManagement />} />
-                    <Route path="events" element={<EventManagement />} />
                     <Route path="bulk-import" element={<BulkImport />} />
                     <Route path="search" element={<GlobalSearch />} />
                   </Route>

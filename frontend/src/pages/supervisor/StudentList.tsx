@@ -14,17 +14,27 @@ import { Pagination } from '../../components/ui/Pagination';
 import { Select } from '../../components/ui/Select';
 import { SkeletonTable } from '../../components/ui/Skeleton';
 import { Table, TableCell, TableEmpty, TableRow } from '../../components/ui/Table';
+import { Tabs } from '../../components/ui/Tabs';
 import { STUDENT_TYPE_LABELS, STUDENT_TYPE_OPTIONS } from '../../utils/constants';
+
+type ProgramKey = 'phd' | 'mtech' | 'btech' | 'mca';
+
+const PROGRAM_TABS: { key: ProgramKey; label: string }[] = [
+  { key: 'phd', label: 'PhD' },
+  { key: 'mtech', label: 'M-Tech' },
+  { key: 'btech', label: 'B-Tech' },
+  { key: 'mca', label: 'MCA' },
+];
 
 export function StudentList(): JSX.Element {
   const { user } = useAuth();
 
+  const [program, setProgram] = useState<ProgramKey>('phd');
+  const [myRole, setMyRole] = useState('');
   const [name, setName] = useState('');
   const [appliedName, setAppliedName] = useState('');
   const [rollNumber, setRollNumber] = useState('');
-  const [semester, setSemester] = useState('');
   const [studentType, setStudentType] = useState('');
-  const [researchArea, setResearchArea] = useState('');
   const [page, setPage] = useState(1);
 
   useEffect(() => {
@@ -35,40 +45,42 @@ export function StudentList(): JSX.Element {
     return () => clearTimeout(timer);
   }, [name]);
 
-  const [appliedSecondary, setAppliedSecondary] = useState({ rollNumber: '', semester: '', researchArea: '' });
+  const [appliedRoll, setAppliedRoll] = useState('');
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      setAppliedSecondary({ rollNumber, semester, researchArea });
+      setAppliedRoll(rollNumber);
       setPage(1);
     }, 300);
     return () => clearTimeout(timer);
-  }, [rollNumber, semester, researchArea]);
+  }, [rollNumber]);
 
   const { data, loading, error, refetch } = useApi(
     (opts) =>
-      supervisorApi.getStudents({
-        name: appliedName || undefined,
-        rollNumber: appliedSecondary.rollNumber || undefined,
-        semester: appliedSecondary.semester || undefined,
-        studentType: studentType || undefined,
-        researchArea: appliedSecondary.researchArea || undefined,
-        page,
-        limit: 20,
-      }, opts),
-    [appliedName, appliedSecondary, studentType, page]
+      supervisorApi.getAssignedStudents(
+        {
+          name: appliedName || undefined,
+          rollNumber: appliedRoll || undefined,
+          studentType: studentType || undefined,
+          program,
+          myRole: myRole || undefined,
+          page,
+          limit: 20,
+        },
+        opts
+      ),
+    [appliedName, appliedRoll, studentType, program, myRole, page]
   );
 
-  const hasFilters = Boolean(name || rollNumber || semester || studentType || researchArea);
+  const hasFilters = Boolean(name || rollNumber || studentType || myRole);
 
   const clearFilters = () => {
     setName('');
     setAppliedName('');
     setRollNumber('');
-    setSemester('');
+    setAppliedRoll('');
     setStudentType('');
-    setResearchArea('');
-    setAppliedSecondary({ rollNumber: '', semester: '', researchArea: '' });
+    setMyRole('');
     setPage(1);
   };
 
@@ -80,8 +92,20 @@ export function StudentList(): JSX.Element {
   return (
     <>
       <PageHeader title="My Students" description="Scholars assigned to you for supervision." />
+
+      <div className="mb-6">
+        <Tabs
+          tabs={PROGRAM_TABS}
+          active={program}
+          onChange={(key) => {
+            setProgram(key as ProgramKey);
+            setPage(1);
+          }}
+        />
+      </div>
+
       <Card className="mb-6">
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Input
             id="filter-name"
             label="Name"
@@ -93,21 +117,8 @@ export function StudentList(): JSX.Element {
             id="filter-roll"
             label="Roll Number"
             value={rollNumber}
-            onChange={(event) => {
-              setRollNumber(event.target.value);
-            }}
+            onChange={(event) => setRollNumber(event.target.value)}
             placeholder="e.g. 22CSP001"
-          />
-          <Input
-            id="filter-semester"
-            label="Semester"
-            value={semester}
-            onChange={(event) => {
-              setSemester(event.target.value);
-            }}
-            placeholder="e.g. 2"
-            type="number"
-            min={1}
           />
           <Select
             id="filter-type"
@@ -119,14 +130,19 @@ export function StudentList(): JSX.Element {
             }}
             options={[{ value: '', label: 'All types' }, ...STUDENT_TYPE_OPTIONS]}
           />
-          <Input
-            id="filter-area"
-            label="Research Area"
-            value={researchArea}
+          <Select
+            id="filter-my-role"
+            label="My Role"
+            value={myRole}
             onChange={(event) => {
-              setResearchArea(event.target.value);
+              setMyRole(event.target.value);
+              setPage(1);
             }}
-            placeholder="e.g. NLP"
+            options={[
+              { value: '', label: 'All Roles' },
+              { value: 'supervisor', label: 'Supervisor' },
+              { value: 'co_supervisor', label: 'Co-supervisor' },
+            ]}
           />
         </div>
         {hasFilters && (
@@ -138,51 +154,67 @@ export function StudentList(): JSX.Element {
         )}
       </Card>
 
-      {loading && <SkeletonTable rows={6} columns={5} />}
-      {error && !loading && <QueryError error={error} onRetry={refetch} />}
-      {!loading && !error && (
-        <Card title="Students" padded={false}>
-          <Table
-            columns={[
-              { key: 'name', header: 'Name' },
-              { key: 'rollNumber', header: 'Roll Number' },
-              { key: 'department', header: 'Department' },
-              { key: 'studentType', header: 'Student Type' },
-              { key: 'researchArea', header: 'Research Area' },
-            ]}
-          >
-            {students.length === 0 ? (
-              <TableEmpty colSpan={5} message="No students found." />
-            ) : (
-              students.map((student) => (
-                <TableRow key={student._id}>
-                  <TableCell
-                    className="font-medium text-gray-900"
-                  >
-                    <Link
-                      to={`/supervisor/students/${student._id}`}
-                      className="text-blue-600 hover:text-blue-800 hover:underline"
-                    >
-                      {student.user?.name ?? '—'}
-                    </Link>
-                  </TableCell>
-                  <TableCell className="text-gray-700">{student.rollNumber}</TableCell>
-                  <TableCell className="text-gray-700">{student.department}</TableCell>
-                  <TableCell>
-                    <Badge label={STUDENT_TYPE_LABELS[student.studentType]} />
-                  </TableCell>
-                  <TableCell className="text-gray-500">{student.researchArea || '—'}</TableCell>
-                </TableRow>
-              ))
+      <div
+        role="tabpanel"
+        id={`tabpanel-${program}`}
+        aria-labelledby={`tab-${program}`}
+        tabIndex={0}
+        className="focus:outline-none"
+      >
+        {loading && <SkeletonTable rows={6} columns={5} />}
+        {error && !loading && <QueryError error={error} onRetry={refetch} />}
+        {!loading && !error && (
+          <Card title={`${PROGRAM_TABS.find((p) => p.key === program)?.label ?? 'Program'} Students`} padded={false}>
+            <Table
+              ariaLabel="Program Students Directory"
+              columns={[
+                { key: 'name', header: 'Name' },
+                { key: 'rollNumber', header: 'Roll Number' },
+                { key: 'department', header: 'Department' },
+                { key: 'studentType', header: 'Student Type' },
+                { key: 'myRole', header: 'My Role' },
+              ]}
+            >
+              {students.length === 0 ? (
+                <TableEmpty colSpan={5} message="No students found." />
+              ) : (
+                students.map((student) => (
+                  <TableRow key={student._id}>
+                    <TableCell className="font-medium text-gray-900">
+                      <Link
+                        to={`/supervisor/students/${student._id}`}
+                        className="text-blue-600 hover:text-blue-800 hover:underline"
+                      >
+                        {student.user?.name ?? '—'}
+                      </Link>
+                    </TableCell>
+                    <TableCell className="text-gray-700">{student.rollNumber}</TableCell>
+                    <TableCell className="text-gray-700">{student.department}</TableCell>
+                    <TableCell>
+                      <Badge label={STUDENT_TYPE_LABELS[student.studentType]} />
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        label={student.myRole === 'co_supervisor' ? 'Co-supervisor' : 'Supervisor'}
+                        className={
+                          student.myRole === 'co_supervisor'
+                            ? 'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium border bg-purple-50 text-purple-700 border-purple-200'
+                            : 'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium border bg-blue-50 text-blue-700 border-blue-200'
+                        }
+                      />
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </Table>
+            {pagination && pagination.totalPages > 1 && (
+              <div className="px-6 py-4">
+                <Pagination page={page} totalPages={pagination.totalPages} onChange={setPage} />
+              </div>
             )}
-          </Table>
-          {pagination && pagination.totalPages > 1 && (
-            <div className="px-6 py-4">
-              <Pagination page={page} totalPages={pagination.totalPages} onChange={setPage} />
-            </div>
-          )}
-        </Card>
-      )}
+          </Card>
+        )}
+      </div>
     </>
   );
 }

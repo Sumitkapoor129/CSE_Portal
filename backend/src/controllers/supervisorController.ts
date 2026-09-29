@@ -21,7 +21,7 @@ import { AppError, asyncHandler } from '../middleware/errorHandler';
 import { createAuditLog } from '../utils/audit';
 import { createNotification, createBulkNotifications } from '../utils/notify';
 import { resolveParticipants, getEligibleStudentOptions, getAssignedStudentUserIds, parseEventDateTime } from '../utils/participants';
-import { updateMilestone as updateMilestoneService } from '../services/milestoneService';
+import { getMilestones, updateMilestone as updateMilestoneService } from '../services/milestoneService';
 import { sendNotificationEmail } from '../utils/email';
 import { computeTotalCredits, computeCreditsForSemester } from '../services/creditService';
 import { getSupervisorScholarsDues } from '../services/ordinanceTimelineService';
@@ -111,7 +111,7 @@ export const getDashboard = asyncHandler(async (req: AuthRequest, res: Response)
 export const getAssignedStudents = asyncHandler(async (req: AuthRequest, res: Response) => {
   const facultyProfile = await getFacultyProfile(req.user!.id);
 
-  const { name, rollNumber, studentType, researchArea, page = '1', limit = '20' } = req.query;
+  const { name, rollNumber, studentType, program, myRole, page = '1', limit = '20' } = req.query;
 
   const assignedStudentIds = await getAssignedStudentProfileIds(facultyProfile._id);
 
@@ -133,8 +133,18 @@ export const getAssignedStudents = asyncHandler(async (req: AuthRequest, res: Re
   if (studentType) {
     filter.studentType = studentType;
   }
-  if (researchArea) {
-    filter.researchArea = { $regex: escapeRegex(researchArea as string), $options: 'i' };
+  if (program) {
+    if (program === 'phd') {
+      filter.$or = [{ program: 'phd' }, { program: { $exists: false } }, { program: null }];
+    } else {
+      filter.program = program;
+    }
+  }
+
+  if (myRole === 'supervisor') {
+    filter.supervisor = facultyProfile._id;
+  } else if (myRole === 'co_supervisor') {
+    filter.coSupervisor = facultyProfile._id;
   }
 
   if (name) {
@@ -142,16 +152,45 @@ export const getAssignedStudents = asyncHandler(async (req: AuthRequest, res: Re
       name: { $regex: escapeRegex(name as string), $options: 'i' },
     }).select('_id').lean();
     const matchedUserIds = matchedUsers.map(u => u._id);
-    filter.user = { $in: matchedUserIds };
+    if (filter.$or) {
+      filter.$and = [
+        { $or: filter.$or },
+        { user: { $in: matchedUserIds } }
+      ];
+      delete filter.$or;
+    } else {
+      filter.user = { $in: matchedUserIds };
+    }
   }
 
-  const studentProfiles = StudentProfile.find(filter).populate('user', 'name email');
+  const studentProfiles = StudentProfile.find(filter)
+    .populate('user', 'name email')
+    .populate({
+      path: 'supervisor',
+      select: 'employeeId department designation user',
+      populate: { path: 'user', select: 'name email' },
+    })
+    .populate({
+      path: 'coSupervisor',
+      select: 'employeeId department designation user',
+      populate: { path: 'user', select: 'name email' },
+    });
 
   const pageNum = Math.max(1, Number(page));
   const limitNum = Math.min(100, Math.max(1, Number(limit)));
   const skip = (pageNum - 1) * limitNum;
 
-  const students = await studentProfiles.skip(skip).limit(limitNum).lean();
+  const rawStudents = await studentProfiles.skip(skip).limit(limitNum).lean();
+
+  const students = rawStudents.map((s: any) => {
+    const isDirectSupervisor = s.supervisor?._id
+      ? s.supervisor._id.toString() === facultyProfile._id.toString()
+      : s.supervisor?.toString() === facultyProfile._id.toString();
+    return {
+      ...s,
+      myRole: isDirectSupervisor ? 'supervisor' : 'co_supervisor',
+    };
+  });
 
   const total = await StudentProfile.countDocuments(filter);
 
@@ -172,13 +211,26 @@ export const getStudentDetail = asyncHandler(async (req: AuthRequest, res: Respo
   const facultyProfile = await getFacultyProfile(req.user!.id);
   const { studentId } = req.params;
 
+  let isAssigned = false;
   const supervisorRecord = await Supervisor.findOne({
     student: studentId,
-    supervisor: facultyProfile._id,
+    $or: [{ supervisor: facultyProfile._id }, { coSupervisor: facultyProfile._id }],
     isActive: true,
   });
+  if (supervisorRecord) {
+    isAssigned = true;
+  } else {
+    const sp = await StudentProfile.findById(studentId);
+    if (
+      sp &&
+      (sp.supervisor?.toString() === facultyProfile._id.toString() ||
+        sp.coSupervisor?.toString() === facultyProfile._id.toString())
+    ) {
+      isAssigned = true;
+    }
+  }
 
-  if (!supervisorRecord) {
+  if (!isAssigned) {
     throw new AppError('Student is not assigned to you', 403);
   }
 
@@ -206,7 +258,7 @@ export const getStudentDetail = asyncHandler(async (req: AuthRequest, res: Respo
 
   const semesterIds = semesters.map((s) => s._id);
 
-  const [courses, credits, documents, theses, srcCommittee, comprehensiveExams, internships] = await Promise.all([
+  const [courses, credits, documents, theses, srcCommittee, comprehensiveExams, internships, milestones] = await Promise.all([
     Course.find({ semester: { $in: semesterIds } })
       .populate('semester', 'semesterNumber academicYear')
       .sort({ createdAt: -1 })
@@ -218,7 +270,7 @@ export const getStudentDetail = asyncHandler(async (req: AuthRequest, res: Respo
     DocumentModel.find({ student: studentId })
       .populate('semester', 'semesterNumber academicYear')
       .populate('uploadedBy', 'name email')
-      .sort({ uploadDate: -1 })
+      .sort({ uploadDate: -1, createdAt: -1 })
       .lean(),
     Thesis.find({ student: studentId })
       .sort({ version: -1 })
@@ -237,6 +289,7 @@ export const getStudentDetail = asyncHandler(async (req: AuthRequest, res: Respo
     Internship.find({ student: studentId })
       .sort({ createdAt: -1 })
       .lean(),
+    getMilestones(studentId),
   ]);
 
   const studentCourses = await StudentCourse.find({
@@ -252,7 +305,7 @@ export const getStudentDetail = asyncHandler(async (req: AuthRequest, res: Respo
       (sc) => (sc.semester as any)._id?.toString() === sem._id.toString()
     );
     const semCredits = credits.find(
-      (c) => (c.semester as any)._id?.toString() === sem._id.toString()
+      (c: any) => (c.semester as any)._id?.toString() === sem._id.toString()
     );
     return {
       semester: sem,
@@ -261,7 +314,7 @@ export const getStudentDetail = asyncHandler(async (req: AuthRequest, res: Respo
     };
   });
 
-  const creditsSummary = await computeTotalCredits(studentId, studentProfile.requiredCredits ?? 12);
+  const creditsSummary = await computeTotalCredits(studentId, (studentProfile as any).requiredCredits ?? 12);
 
   res.status(200).json({
     success: true,
@@ -276,6 +329,7 @@ export const getStudentDetail = asyncHandler(async (req: AuthRequest, res: Respo
       totalCredits: creditsSummary,
       comprehensiveExams,
       internships,
+      milestones,
     },
   });
 });

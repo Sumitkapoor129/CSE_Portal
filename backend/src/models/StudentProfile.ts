@@ -9,6 +9,7 @@ const studentProfileSchema = new Schema<any>(
     collegeId: { type: String, required: true, unique: true, trim: true },
     rollNumber: { type: String, required: true, unique: true, trim: true },
     studentType: { type: String, enum: Object.values(StudentType), required: true },
+    program: { type: String, enum: ['btech', 'mtech', 'mca', 'phd'], default: 'phd' },
     department: { type: String, required: true, trim: true },
     researchArea: { type: String, default: '', trim: true },
     admissionDate: { type: Date, required: true },

@@ -9,6 +9,7 @@ const facultyProfileSchema = new Schema<any>(
     employeeId: { type: String, required: true, unique: true, trim: true },
     department: { type: String, required: true, trim: true },
     designation: { type: String, required: true, trim: true },
+    isHod: { type: Boolean, default: false },
     researchAreas: [{ type: String, trim: true }],
     profilePhoto: { type: String },
   },

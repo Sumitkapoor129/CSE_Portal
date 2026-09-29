@@ -161,7 +161,7 @@ export function AdminDashboard(): JSX.Element {
     setAdminInternshipSubmitting(true);
     setAdminInternshipError(null);
     try {
-      await adminApi.reviewInternship(adminReviewInternship._id, {
+      await adminApi.adminReviewInternship(adminReviewInternship._id, {
         status: adminInternshipDecision,
         adminComment: adminInternshipComment.trim() || undefined,
       });

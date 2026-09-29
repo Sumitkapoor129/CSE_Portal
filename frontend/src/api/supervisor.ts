@@ -20,8 +20,40 @@ import type {
 
 export const supervisorApi = {
   getDashboard: (opts?: ApiOpts) => apiFetch<SupervisorDashboardData>('/supervisor/dashboard', { signal: opts?.signal }),
-  getStudents: (params: { name?: string; rollNumber?: string; semester?: string; studentType?: string; researchArea?: string; page?: number; limit?: number } = {}, opts?: ApiOpts) =>
-    apiFetch<{ students: StudentListItem[]; pagination: Pagination }>('/supervisor/students', { query: params, signal: opts?.signal }),
+  getAssignedStudents: (
+    params: {
+      name?: string;
+      rollNumber?: string;
+      studentType?: string;
+      program?: string;
+      myRole?: string;
+      page?: number;
+      limit?: number;
+    } = {},
+    opts?: ApiOpts
+  ) =>
+    apiFetch<{ students: StudentListItem[]; pagination: Pagination }>('/supervisor/students', {
+      query: params,
+      signal: opts?.signal,
+    }),
+  getStudents: (
+    params: {
+      name?: string;
+      rollNumber?: string;
+      semester?: string;
+      studentType?: string;
+      researchArea?: string;
+      program?: string;
+      myRole?: string;
+      page?: number;
+      limit?: number;
+    } = {},
+    opts?: ApiOpts
+  ) =>
+    apiFetch<{ students: StudentListItem[]; pagination: Pagination }>('/supervisor/students', {
+      query: params,
+      signal: opts?.signal,
+    }),
   getStudentOptions: (opts?: ApiOpts) => apiFetch<StudentOption[]>('/supervisor/students/options', { signal: opts?.signal }),
   getStudentDetail: (studentId: string, opts?: ApiOpts) => apiFetch<SupervisorStudentDetail>(`/supervisor/students/${studentId}`, { signal: opts?.signal }),
   approveCourse: (studentCourseId: string, payload: { status: 'approved' | 'rejected'; comment?: string }) =>
@@ -37,8 +69,6 @@ export const supervisorApi = {
     apiFetch<{ events: EventView[]; pagination: Pagination }>('/supervisor/events', { query: params, signal: opts?.signal }),
   getAssignedScholarsDues: (opts?: ApiOpts) =>
     apiFetch<{ dues: ScholarDueItem[]; criticalCount: number; warningCount: number }>('/supervisor/dues', { signal: opts?.signal }),
-  recordComprehensiveExamResult: (payload: { studentId: string; attemptNumber: number; examDate: string; result: ComprehensiveExamResult; remarks?: string }) =>
-    apiFetch<ComprehensiveExam>('/supervisor/comprehensive-exam', { method: 'POST', body: payload }),
   recordComprehensiveExam: (payload: { studentId: string; attemptNumber: number; examDate: string; result: ComprehensiveExamResult; remarks?: string }) =>
     apiFetch<ComprehensiveExam>('/supervisor/comprehensive-exam', { method: 'POST', body: payload }),
   getStudentComprehensiveExams: (studentId: string, opts?: ApiOpts) =>

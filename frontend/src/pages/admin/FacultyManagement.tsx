@@ -29,6 +29,7 @@ const EMPTY_CREATE_FORM = {
   department: '',
   designation: '',
   researchAreas: '',
+  isHod: false,
 };
 
 const EMPTY_EDIT_FORM = {
@@ -39,6 +40,7 @@ const EMPTY_EDIT_FORM = {
   designation: '',
   researchAreas: '',
   profilePhoto: '',
+  isHod: false,
 };
 
 export function FacultyManagement(): JSX.Element {
@@ -151,14 +153,15 @@ export function FacultyManagement(): JSX.Element {
         researchAreas: createForm.researchAreas
           ? createForm.researchAreas.split(',').map((item) => item.trim()).filter(Boolean)
           : undefined,
+        isHod: createForm.isHod,
       });
       closeCreate();
       setSuccessMessage('Faculty member created successfully.');
       setPage(1);
       refetch();
-    } catch {
+    } catch (err: unknown) {
       setCreating(false);
-      setCreateError('Unable to create the faculty member. Please try again.');
+      setCreateError(err instanceof Error ? err.message : 'Unable to create the faculty member. Please try again.');
     }
   };
 
@@ -172,6 +175,7 @@ export function FacultyManagement(): JSX.Element {
       designation: member.designation,
       researchAreas: Array.isArray(member.researchAreas) ? member.researchAreas.join(', ') : '',
       profilePhoto: member.profilePhoto ?? '',
+      isHod: Boolean(member.isHod),
     });
     setEditError(null);
     setEditOpen(true);
@@ -200,13 +204,14 @@ export function FacultyManagement(): JSX.Element {
           ? editingForm.researchAreas.split(',').map((item) => item.trim()).filter(Boolean)
           : [],
         profilePhoto: editingForm.profilePhoto.trim() || undefined,
+        isHod: editingForm.isHod,
       });
       closeEdit();
       setSuccessMessage('Faculty member updated successfully.');
       refetch();
-    } catch {
+    } catch (err: unknown) {
       setSavingEdit(false);
-      setEditError('Unable to update the faculty member. Please try again.');
+      setEditError(err instanceof Error ? err.message : 'Unable to update the faculty member. Please try again.');
     }
   };
 
@@ -222,9 +227,9 @@ export function FacultyManagement(): JSX.Element {
       setConfirmFaculty(null);
       setToggling(false);
       refetch();
-    } catch {
+    } catch (err: unknown) {
       setToggling(false);
-      setToggleError('Unable to update account status. Please try again.');
+      setToggleError(err instanceof Error ? err.message : 'Unable to update account status. Please try again.');
     }
   };
 
@@ -280,6 +285,7 @@ export function FacultyManagement(): JSX.Element {
       {!loading && !error && (
         <Card title="Faculty" padded={false}>
           <Table
+            ariaLabel="Faculty Directory"
             columns={[
               { key: 'photo', header: 'Photo' },
               { key: 'name', header: 'Name' },
@@ -298,7 +304,16 @@ export function FacultyManagement(): JSX.Element {
                   <TableCell>
                     <Avatar name={member.user?.name ?? '—'} photo={member.profilePhoto ?? null} size="sm" />
                   </TableCell>
-                  <TableCell className="font-medium text-gray-900">{member.user?.name ?? '—'}</TableCell>
+                  <TableCell className="font-medium text-gray-900">
+                    <div className="flex items-center gap-2">
+                      <span>{member.user?.name ?? '—'}</span>
+                      {member.isHod && (
+                        <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-800">
+                          HOD
+                        </span>
+                      )}
+                    </div>
+                  </TableCell>
                   <TableCell className="text-gray-700">{member.employeeId}</TableCell>
                   <TableCell className="text-gray-700">{member.department}</TableCell>
                   <TableCell className="text-gray-700">{member.designation}</TableCell>
@@ -310,7 +325,12 @@ export function FacultyManagement(): JSX.Element {
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
-                      <Button variant="secondary" size="sm" onClick={() => openEdit(member)}>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        aria-label={`Edit faculty member ${member.user?.name || member.employeeId}`}
+                        onClick={() => openEdit(member)}
+                      >
                         Edit
                       </Button>
                       <Button
@@ -393,6 +413,18 @@ export function FacultyManagement(): JSX.Element {
               onChange={(event) => setCreateForm({ ...createForm, researchAreas: event.target.value })}
               hint="Comma-separated, optional"
             />
+            <div className="sm:col-span-2 pt-1">
+              <label htmlFor="create-is-hod" className="flex items-center gap-2 cursor-pointer">
+                <input
+                  id="create-is-hod"
+                  type="checkbox"
+                  checked={createForm.isHod}
+                  onChange={(event) => setCreateForm({ ...createForm, isHod: event.target.checked })}
+                  className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm text-gray-700">Designate as HOD - only 1 faculty can be HOD</span>
+              </label>
+            </div>
           </div>
           <div className="flex justify-end gap-3">
             <Button type="button" variant="secondary" onClick={closeCreate}>
@@ -453,6 +485,18 @@ export function FacultyManagement(): JSX.Element {
               value={editingForm.profilePhoto}
               onChange={(event) => setEditingForm({ ...editingForm, profilePhoto: event.target.value })}
             />
+            <div className="sm:col-span-2 pt-1">
+              <label htmlFor="edit-is-hod" className="flex items-center gap-2 cursor-pointer">
+                <input
+                  id="edit-is-hod"
+                  type="checkbox"
+                  checked={editingForm.isHod}
+                  onChange={(event) => setEditingForm({ ...editingForm, isHod: event.target.checked })}
+                  className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm text-gray-700">Designate as HOD - only 1 faculty can be HOD</span>
+              </label>
+            </div>
           </div>
           <div className="flex justify-end gap-3">
             <Button type="button" variant="secondary" onClick={closeEdit}>

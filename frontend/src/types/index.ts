@@ -1,9 +1,17 @@
 export type UserRole = 'student' | 'supervisor' | 'admin';
 export type StudentType = 'frp' | 'erp';
-export type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'resubmission_required';
+export type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'resubmission_required' | 'completed';
 export type ThesisStatus = 'draft' | 'submitted' | 'under_review' | 'approved' | 'rejected' | 'resubmission_required';
 export type EventType = 'seminar' | 'comprehensive_exam' | 'progress_review' | 'thesis_defense' | 'course_registration' | 'other';
-export type SRCMemberRole = 'chairperson' | 'supervisor' | 'co_supervisor' | 'member';
+export type SRCMemberRole = 'chairperson' | 'supervisor' | 'co_supervisor' | 'member' | 'external_member';
+export const SRCMemberRole = {
+  CHAIRPERSON: 'chairperson' as const,
+  SUPERVISOR: 'supervisor' as const,
+  CO_SUPERVISOR: 'co_supervisor' as const,
+  MEMBER: 'member' as const,
+  EXTERNAL_MEMBER: 'external_member' as const,
+};
+export type StudentProgram = 'btech' | 'mtech' | 'mca' | 'phd';
 export type MilestoneStatus = 'pending' | 'in_progress' | 'completed' | 'skipped' | 'rejected';
 export type MilestoneDisplayStatus =
   | 'completed' | 'pending' | 'in_progress' | 'overdue' | 'urgent' | 'due_soon'
@@ -21,6 +29,12 @@ export interface AuthUser {
   isActive?: boolean;
   profilePhoto?: string | null;
   isProfileComplete?: boolean;
+  isHod?: boolean;
+  designation?: string;
+}
+
+export interface User extends AuthUser {
+  isHod?: boolean;
 }
 
 export interface StudentProfileUpdate {
@@ -54,6 +68,8 @@ export interface UserShort {
   email: string;
   role?: UserRole;
   isActive?: boolean;
+  isHod?: boolean;
+  designation?: string;
 }
 
 export interface FacultyShort {
@@ -64,6 +80,7 @@ export interface FacultyShort {
   profilePhoto?: string;
   user?: UserShort;
   name?: string;
+  isHod?: boolean;
 }
 
 export interface SRCMember {
@@ -95,6 +112,7 @@ export interface StudentProfileView {
   collegeId: string;
   rollNumber: string;
   studentType: StudentType;
+  program?: StudentProgram;
   department: string;
   researchArea: string;
   admissionDate: string;
@@ -105,6 +123,16 @@ export interface StudentProfileView {
   coSupervisor?: FacultyShort | null;
   srcCommittee?: SRCCommittee | null;
   isProfileComplete: boolean;
+  myRole?: 'supervisor' | 'co_supervisor';
+}
+
+export interface StudentProfile extends StudentProfileView {
+  program?: StudentProgram;
+}
+
+export interface Student extends StudentProfileView {
+  program?: StudentProgram;
+  myRole?: 'supervisor' | 'co_supervisor';
 }
 
 export interface Semester {
@@ -360,6 +388,7 @@ export interface SupervisorStudentDetail {
   totalCredits: CreditsSummary;
   comprehensiveExams?: ComprehensiveExam[];
   internships?: Internship[];
+  milestones?: Milestone[];
 }
 
 export interface SupervisorEventPayload {
@@ -395,6 +424,7 @@ export interface AdminCreateStudent {
   collegeId: string;
   rollNumber: string;
   studentType: StudentType;
+  program?: StudentProgram;
   department: string;
   researchArea?: string;
   admissionDate?: string;
@@ -407,6 +437,7 @@ export interface AdminUpdateStudent {
   collegeId?: string;
   rollNumber?: string;
   studentType?: StudentType;
+  program?: StudentProgram;
   department?: string;
   researchArea?: string;
   profilePhoto?: string;
@@ -420,6 +451,7 @@ export interface AdminCreateFaculty {
   department: string;
   designation: string;
   researchAreas?: string[];
+  isHod?: boolean;
 }
 
 export interface AdminUpdateFaculty {
@@ -430,6 +462,7 @@ export interface AdminUpdateFaculty {
   designation?: string;
   researchAreas?: string[];
   profilePhoto?: string;
+  isHod?: boolean;
 }
 
 export interface FacultyView {
@@ -440,6 +473,11 @@ export interface FacultyView {
   designation: string;
   researchAreas: string[];
   profilePhoto?: string;
+  isHod?: boolean;
+}
+
+export interface Faculty extends FacultyView {
+  isHod?: boolean;
 }
 
 export interface AdminEventPayload {

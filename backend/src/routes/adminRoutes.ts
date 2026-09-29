@@ -12,16 +12,10 @@ import {
   assignSupervisor,
   createSRCCommittee,
   updateSRCCommittee,
-  createEvent,
-  updateEvent,
-  deleteEvent,
-  listEvents,
   listForms,
   createForm,
   updateForm,
   deleteForm,
-  listDeadlines,
-  createDeadline,
   globalSearch,
   getStudentMilestones,
   updateMilestone,
@@ -31,6 +25,10 @@ import {
   updateExternalExaminer,
   listAllInternships,
   adminReviewInternship,
+  getStudentCourses,
+  addStudentCourse,
+  updateStudentCourse,
+  deleteStudentCourse,
 } from '../controllers/adminController';
 import { downloadTemplate, bulkImport, upload } from '../controllers/bulkImportController';
 import { authenticate, authorize } from '../middleware/auth';
@@ -49,6 +47,12 @@ router.get('/students/:id/milestones', getStudentMilestones);
 router.put('/students/:id', updateStudent);
 router.put('/students/:id/toggle-active', toggleStudentActive);
 
+// Admin Direct Student Course Management
+router.get('/students/:studentId/courses', getStudentCourses);
+router.post('/students/:studentId/courses', addStudentCourse);
+router.put('/students/:studentId/courses/:studentCourseId', updateStudentCourse);
+router.delete('/students/:studentId/courses/:studentCourseId', deleteStudentCourse);
+
 router.post('/faculty', createFaculty);
 router.get('/faculty', listFaculty);
 router.put('/faculty/:id', updateFaculty);
@@ -61,18 +65,10 @@ router.put('/src-committee/:id', updateSRCCommittee);
 
 router.put('/milestones/:id', updateMilestone);
 
-router.post('/events', createEvent);
-router.get('/events', listEvents);
-router.put('/events/:id', updateEvent);
-router.delete('/events/:id', deleteEvent);
-
 router.get('/forms', listForms);
 router.post('/forms', createForm);
 router.put('/forms/:id', updateForm);
 router.delete('/forms/:id', deleteForm);
-
-router.get('/deadlines', listDeadlines);
-router.post('/deadlines', createDeadline);
 
 router.get('/bulk-import/template/:type', downloadTemplate);
 router.post('/bulk-import/:type', upload.single('file'), bulkImport);

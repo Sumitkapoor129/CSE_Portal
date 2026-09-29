@@ -23,7 +23,9 @@ export function Sidebar(): JSX.Element {
           <Avatar name={user.name} photo={user.profilePhoto ?? null} />
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold text-gray-900">{user.name}</p>
-            <p className="truncate text-xs text-gray-500">{ROLE_LABELS[user.role]}</p>
+            <p className="truncate text-xs text-gray-500">
+              {user.role === 'supervisor' ? (user.designation || 'Faculty') : ROLE_LABELS[user.role]}
+            </p>
           </div>
         </div>
       </div>
