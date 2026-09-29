@@ -7,6 +7,8 @@ import { connectDB } from './config/db';
 import { errorHandler } from './middleware/errorHandler';
 import { seedAdmin } from './utils/seedAdmin';
 import { checkDeadlines } from './services/deadlineService';
+import { checkMilestoneReminders } from './services/reminderService';
+import { backfillMilestoneMetadata } from './services/milestoneService';
 
 import authRoutes from './routes/authRoutes';
 import studentRoutes from './routes/studentRoutes';
@@ -87,10 +89,37 @@ const startDeadlineScheduler = () => {
   return interval;
 };
 
+const startMilestoneReminderScheduler = () => {
+  let running = false;
+  const run = async () => {
+    if (running) return;
+    running = true;
+    try {
+      await checkMilestoneReminders({ log: true });
+    } finally {
+      running = false;
+    }
+  };
+  setImmediate(run);
+  const interval = setInterval(run, DEADLINE_CHECK_INTERVAL_MS);
+  return interval;
+};
+
+let deadlineSchedulerHandle: NodeJS.Timeout | null = null;
+let reminderSchedulerHandle: NodeJS.Timeout | null = null;
+
 const start = async () => {
   await connectDB();
+  // One-time legacy metadata backfill before any scheduler touches reminders.
+  try {
+    const result = await backfillMilestoneMetadata();
+    console.log(`backfillMilestoneMetadata: updated ${result.updated} milestone docs`);
+  } catch (err) {
+    console.error('backfillMilestoneMetadata failed:', err);
+  }
   await seedAdmin();
-  const schedulerInterval = startDeadlineScheduler();
+  deadlineSchedulerHandle = startDeadlineScheduler();
+  reminderSchedulerHandle = startMilestoneReminderScheduler();
 
   app.listen(env.PORT, () => {
     console.log(`Server running on port ${env.PORT}`);
@@ -103,7 +132,11 @@ start().catch((err) => {
   process.exit(1);
 });
 
-const shutdown = () => { process.exit(0); };
+const shutdown = () => {
+  if (deadlineSchedulerHandle) clearInterval(deadlineSchedulerHandle);
+  if (reminderSchedulerHandle) clearInterval(reminderSchedulerHandle);
+  process.exit(0);
+};
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
 

@@ -11,6 +11,10 @@ const notificationSchema = new Schema<any>(
     type: { type: String, required: true },
     isRead: { type: Boolean, default: false },
     link: { type: String },
+    milestone: { type: Schema.Types.ObjectId, ref: 'Milestone' },
+    dueDate: { type: Date },
+    daysRemaining: { type: Number },
+    severity: { type: String, enum: ['info', 'warning', 'critical'] },
   },
   { timestamps: true }
 );

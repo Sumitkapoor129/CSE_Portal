@@ -14,6 +14,8 @@ import { DocumentModel } from '../models/Document';
 import { SRCCommittee } from '../models/SRCCommittee';
 import { User } from '../models/User';
 import { Milestone } from '../models/Milestone';
+import { Internship } from '../models/Internship';
+import { ComprehensiveExam } from '../models/ComprehensiveExam';
 import { authenticate, authorize } from '../middleware/auth';
 import { AppError, asyncHandler } from '../middleware/errorHandler';
 import { createAuditLog } from '../utils/audit';
@@ -22,7 +24,17 @@ import { resolveParticipants, getEligibleStudentOptions, getAssignedStudentUserI
 import { updateMilestone as updateMilestoneService } from '../services/milestoneService';
 import { sendNotificationEmail } from '../utils/email';
 import { computeTotalCredits, computeCreditsForSemester } from '../services/creditService';
-import { UserRole, AuthRequest, ApprovalStatus, ThesisStatus } from '../types';
+import { getSupervisorScholarsDues } from '../services/ordinanceTimelineService';
+import {
+  UserRole,
+  AuthRequest,
+  ApprovalStatus,
+  ThesisStatus,
+  InternshipStatus,
+  ComprehensiveExamResult,
+  MilestoneKey,
+  MilestoneStatus,
+} from '../types';
 import { escapeRegex } from '../utils/query';
 
 const getFacultyProfile = async (userId: string) => {
@@ -80,6 +92,8 @@ export const getDashboard = asyncHandler(async (req: AuthRequest, res: Response)
   const pendingApprovals =
     pendingCourseApprovals + pendingThesisApprovals + pendingGeneralApprovals;
 
+  const duesSummary = await getSupervisorScholarsDues(facultyProfile._id.toString());
+
   res.status(200).json({
     success: true,
     data: {
@@ -89,6 +103,7 @@ export const getDashboard = asyncHandler(async (req: AuthRequest, res: Response)
       pendingCourseApprovals,
       pendingThesisApprovals,
       pendingGeneralApprovals,
+      duesSummary,
     },
   });
 });
@@ -191,7 +206,7 @@ export const getStudentDetail = asyncHandler(async (req: AuthRequest, res: Respo
 
   const semesterIds = semesters.map((s) => s._id);
 
-  const [courses, credits, documents, theses, srcCommittee] = await Promise.all([
+  const [courses, credits, documents, theses, srcCommittee, comprehensiveExams, internships] = await Promise.all([
     Course.find({ semester: { $in: semesterIds } })
       .populate('semester', 'semesterNumber academicYear')
       .sort({ createdAt: -1 })
@@ -214,6 +229,13 @@ export const getStudentDetail = asyncHandler(async (req: AuthRequest, res: Respo
         select: 'employeeId department designation user profilePhoto',
         populate: { path: 'user', select: 'name email' },
       })
+      .lean(),
+    ComprehensiveExam.find({ student: studentId })
+      .populate('conductedBy', 'name email')
+      .sort({ attemptNumber: 1 })
+      .lean(),
+    Internship.find({ student: studentId })
+      .sort({ createdAt: -1 })
       .lean(),
   ]);
 
@@ -252,8 +274,19 @@ export const getStudentDetail = asyncHandler(async (req: AuthRequest, res: Respo
       srcCommittee,
       timeline,
       totalCredits: creditsSummary,
+      comprehensiveExams,
+      internships,
     },
   });
+});
+
+export const getStudentComprehensiveExams = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { studentId } = req.params;
+  const exams = await ComprehensiveExam.find({ student: studentId })
+    .populate('conductedBy', 'name email')
+    .sort({ attemptNumber: 1 })
+    .lean();
+  res.status(200).json({ success: true, data: exams });
 });
 
 export const approveCourse = asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -723,3 +756,165 @@ export const getPendingApprovals = asyncHandler(async (req: AuthRequest, res: Re
     },
   });
 });
+
+export const getAssignedScholarsDues = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const facultyProfile = await getFacultyProfile(req.user!.id);
+  const duesSummary = await getSupervisorScholarsDues(facultyProfile._id.toString());
+  res.status(200).json({ success: true, data: duesSummary });
+});
+
+export const recordComprehensiveExamResult = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { studentId, attemptNumber, examDate, result, remarks } = req.body;
+
+  if (!studentId || !attemptNumber || !examDate || !result) {
+    throw new AppError('studentId, attemptNumber, examDate, and result are required', 400);
+  }
+
+  if (![1, 2].includes(Number(attemptNumber))) {
+    throw new AppError('Per PhD ordinance, maximum 2 comprehensive exam attempts are allowed.', 400);
+  }
+
+  if (!Object.values(ComprehensiveExamResult).includes(result)) {
+    throw new AppError('Invalid result. Must be scheduled, passed, or failed.', 400);
+  }
+
+  const studentProfile = await StudentProfile.findById(studentId);
+  if (!studentProfile) {
+    throw new AppError('Student profile not found', 404);
+  }
+
+  // Ordinance Rule: "Comprehensive Examination: After completion of required coursework"
+  const cwMilestone = await Milestone.findOne({
+    student: studentProfile._id,
+    key: MilestoneKey.COURSE_WORK,
+  });
+
+  if (!cwMilestone || cwMilestone.status !== MilestoneStatus.COMPLETED) {
+    throw new AppError(
+      'Per PhD ordinance, Comprehensive Examination can only be conducted after completion of required coursework.',
+      400
+    );
+  }
+
+  const existingAttempt1 = await ComprehensiveExam.findOne({ student: studentProfile._id, attemptNumber: 1 });
+
+  if (Number(attemptNumber) === 2) {
+    if (!existingAttempt1) {
+      throw new AppError('First attempt must be recorded before recording second attempt.', 400);
+    }
+    if (existingAttempt1.result === ComprehensiveExamResult.PASSED) {
+      throw new AppError('Student has already passed the comprehensive examination on first attempt.', 400);
+    }
+  }
+
+  const parsedExamDate = new Date(examDate);
+  let retakeDeadline: Date | undefined;
+
+  // Ordinance Rule: "Second Comprehensive Exam: If first attempt is unsatisfactory, within 3 months"
+  if (Number(attemptNumber) === 1 && result === ComprehensiveExamResult.FAILED) {
+    retakeDeadline = new Date(parsedExamDate.getTime() + 90 * 86400000);
+  }
+
+  const examRecord = await ComprehensiveExam.findOneAndUpdate(
+    { student: studentProfile._id, attemptNumber: Number(attemptNumber) },
+    {
+      student: studentProfile._id,
+      attemptNumber: Number(attemptNumber),
+      examDate: parsedExamDate,
+      result,
+      retakeDeadline,
+      remarks: remarks || '',
+      conductedBy: req.user!.id,
+    },
+    { upsert: true, new: true, setDefaultsOnInsert: true }
+  );
+
+  // Synchronize with Milestone
+  const compMilestone = await Milestone.findOne({
+    student: studentProfile._id,
+    key: MilestoneKey.COMPREHENSIVE_EXAM,
+  });
+
+  if (compMilestone) {
+    if (result === ComprehensiveExamResult.PASSED) {
+      compMilestone.status = MilestoneStatus.COMPLETED;
+      compMilestone.completedAt = parsedExamDate;
+      await compMilestone.save();
+
+      // Automatically update Topic Registration due date to examDate + 6 months
+      const topicMilestone = await Milestone.findOne({
+        student: studentProfile._id,
+        key: MilestoneKey.TOPIC_REGISTRATION,
+      });
+      if (topicMilestone) {
+        topicMilestone.dueDate = new Date(parsedExamDate.getTime() + 180 * 86400000);
+        await topicMilestone.save();
+      }
+    } else if (result === ComprehensiveExamResult.FAILED) {
+      if (Number(attemptNumber) === 1) {
+        compMilestone.status = MilestoneStatus.IN_PROGRESS;
+        compMilestone.dueDate = retakeDeadline;
+      } else {
+        compMilestone.status = MilestoneStatus.REJECTED;
+      }
+      await compMilestone.save();
+    }
+  }
+
+  await createAuditLog({
+    user: req.user!.id,
+    action: 'RECORD_COMPREHENSIVE_EXAM',
+    entity: 'ComprehensiveExam',
+    entityId: examRecord._id.toString(),
+    newValue: { studentId, attemptNumber, result, retakeDeadline },
+  });
+
+  res.status(200).json({ success: true, data: examRecord });
+});
+
+export const listScholarInternships = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const facultyProfile = await getFacultyProfile(req.user!.id);
+  const assignedStudentIds = await getAssignedStudentProfileIds(facultyProfile._id);
+
+  const internships = await Internship.find({ student: { $in: assignedStudentIds } })
+    .populate('student', 'rollNumber collegeId department user')
+    .populate({
+      path: 'student',
+      populate: { path: 'user', select: 'name email' },
+    })
+    .sort({ createdAt: -1 })
+    .lean();
+
+  res.status(200).json({ success: true, data: internships });
+});
+
+export const reviewInternship = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { id } = req.params;
+  const { status, supervisorComment } = req.body;
+
+  if (!status || ![InternshipStatus.SUPERVISOR_APPROVED, InternshipStatus.REJECTED].includes(status)) {
+    throw new AppError('Status must be supervisor_approved or rejected', 400);
+  }
+
+  const internship = await Internship.findById(id);
+  if (!internship) {
+    throw new AppError('Internship request not found', 404);
+  }
+
+  internship.status = status;
+  if (supervisorComment) {
+    internship.supervisorComment = supervisorComment.trim();
+  }
+  await internship.save();
+
+  await createAuditLog({
+    user: req.user!.id,
+    action: 'REVIEW_INTERNSHIP',
+    entity: 'Internship',
+    entityId: internship._id.toString(),
+    newValue: { status, supervisorComment },
+  });
+
+  res.status(200).json({ success: true, data: internship });
+});
+

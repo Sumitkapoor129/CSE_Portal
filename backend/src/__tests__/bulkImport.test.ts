@@ -109,7 +109,7 @@ it('downloads student template as xlsx', async () => {
     expect(res.body.data.failed).toBe(0);
     expect(await User.countDocuments({ role: 'student' })).toBe(2);
     expect(await StudentProfile.countDocuments({})).toBe(2);
-    expect(await Milestone.countDocuments({})).toBe(22);
+    expect(await Milestone.countDocuments({})).toBe(24);
   });
 
 it('applies milestone overrides for a previous student', async () => {

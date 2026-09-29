@@ -13,12 +13,20 @@ import {
   submitThesis,
   getTimeline,
   getNotifications,
+  getUnreadNotificationsCount,
+  markAllNotificationsRead,
   markNotificationRead,
   getDashboard,
   getMyEvents,
   getMyDeadlines,
   getMyForms,
   getMyMilestones,
+  getMilestoneTimeline,
+  completeMilestone,
+  updateMyMilestoneDate,
+  getMyInternships,
+  createInternshipRequest,
+  getMyComprehensiveExams,
 } from '../controllers/studentController';
 import { authenticate, authorize } from '../middleware/auth';
 import { UserRole } from '../types';
@@ -47,6 +55,8 @@ router.post('/thesis', submitThesis);
 router.get('/timeline', getTimeline);
 
 router.get('/notifications', getNotifications);
+router.get('/notifications/unread-count', getUnreadNotificationsCount);
+router.put('/notifications/read-all', markAllNotificationsRead);
 router.put('/notifications/:id/read', markNotificationRead);
 
 router.get('/dashboard', getDashboard);
@@ -54,5 +64,13 @@ router.get('/events', getMyEvents);
 router.get('/deadlines', getMyDeadlines);
 router.get('/forms', getMyForms);
 router.get('/milestones', getMyMilestones);
+router.get('/milestones/timeline', getMilestoneTimeline);
+router.put('/milestones/:id/complete', completeMilestone);
+router.put('/milestones/:id', updateMyMilestoneDate);
+
+router.get('/internships', getMyInternships);
+router.post('/internships', createInternshipRequest);
+
+router.get('/comprehensive-exams', getMyComprehensiveExams);
 
 export default router;

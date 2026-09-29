@@ -5,9 +5,13 @@ export type ThesisStatus = 'draft' | 'submitted' | 'under_review' | 'approved' |
 export type EventType = 'seminar' | 'comprehensive_exam' | 'progress_review' | 'thesis_defense' | 'course_registration' | 'other';
 export type SRCMemberRole = 'chairperson' | 'supervisor' | 'co_supervisor' | 'member';
 export type MilestoneStatus = 'pending' | 'in_progress' | 'completed' | 'skipped' | 'rejected';
+export type MilestoneDisplayStatus =
+  | 'completed' | 'pending' | 'in_progress' | 'overdue' | 'urgent' | 'due_soon'
+  | 'upcoming' | 'planned' | 'tbd' | 'skipped' | 'rejected';
+export type StudentCategory = 'post_masters' | 'direct_after_graduation';
 export type MilestoneKey =
   | 'admission' | 'src_formed' | 'course_work' | 'comprehensive_exam' | 'topic_registration'
-  | 'enhancement_seminar' | 'pre_submission' | 'thesis_submitted' | 'thesis_approved' | 'defense' | 'degree_awarded';
+  | 'enhancement_seminar' | 'extension_seminar' | 'pre_submission' | 'thesis_submitted' | 'thesis_approved' | 'defense' | 'degree_awarded';
 
 export interface AuthUser {
   id: string;
@@ -223,6 +227,10 @@ export interface Notification {
   isRead: boolean;
   link?: string;
   createdAt: string;
+  severity?: 'info' | 'warning' | 'critical';
+  milestone?: string;
+  dueDate?: string;
+  daysRemaining?: number;
 }
 
 export interface Milestone {
@@ -236,6 +244,31 @@ export interface Milestone {
   dueDate?: string;
   completedAt?: string;
   updatedBy?: string;
+  regulation?: string;
+  priority?: 'info' | 'warning' | 'critical';
+  dateSource?: 'auto' | 'manual';
+  reminderLevels?: string[];
+  daysRemaining?: number;
+  displayStatus?: MilestoneDisplayStatus;
+  urgencyText?: string;
+}
+
+export interface MilestoneSummary {
+  currentStage: string | null;
+  completed: number;
+  upcoming: number;
+  overdue: number;
+  total: number;
+}
+
+export interface MilestoneTimelineView {
+  admissionDate: string | null;
+  category: StudentCategory | null;
+  validity: RegistrationValidity | null;
+  milestones: Milestone[];
+  summary: MilestoneSummary;
+  upcoming: Milestone[];
+  nextMilestone: Milestone | null;
 }
 
 export interface TimelineItem {
@@ -288,6 +321,16 @@ export interface StudentDashboardData {
   pendingCourseRequests: StudentCourse[];
   thesis: Thesis | null;
   unreadNotifications: number;
+  ordinanceAlerts?: TimelineAlert[];
+  validity?: RegistrationValidity;
+  timelineDues?: ScholarDueItem[];
+  comprehensiveExam?: {
+    attemptsCount: number;
+    hasPassed: boolean;
+    latestResult?: ComprehensiveExamResult;
+    retakeDeadline?: string;
+    canTakeSecondAttempt: boolean;
+  };
 }
 
 export type StudentListItem = StudentProfileView;
@@ -299,6 +342,11 @@ export interface SupervisorDashboardData {
   pendingCourseApprovals: number;
   pendingThesisApprovals: number;
   pendingGeneralApprovals: number;
+  duesSummary?: {
+    dues: ScholarDueItem[];
+    criticalCount: number;
+    warningCount: number;
+  };
 }
 
 export interface SupervisorStudentDetail {
@@ -310,6 +358,8 @@ export interface SupervisorStudentDetail {
   srcCommittee: SRCCommittee | null;
   timeline: { semester: Semester; courses: StudentCourse[]; credits: Credits | null }[];
   totalCredits: CreditsSummary;
+  comprehensiveExams?: ComprehensiveExam[];
+  internships?: Internship[];
 }
 
 export interface SupervisorEventPayload {
@@ -330,6 +380,12 @@ export interface AdminDashboardData {
   totalFaculty: number;
   totalEvents: number;
   pendingApprovals: number;
+  departmentDues?: {
+    dues: ScholarDueItem[];
+    overdueCount: number;
+    dueSoonCount: number;
+    expiringRegistrationCount: number;
+  };
 }
 
 export interface AdminCreateStudent {
@@ -432,3 +488,89 @@ export interface BulkImportReport {
   failed: number;
   rows: BulkImportRow[];
 }
+
+export type ComprehensiveExamResult = 'scheduled' | 'passed' | 'failed';
+
+export interface ComprehensiveExam {
+  _id: string;
+  student: string;
+  attemptNumber: number;
+  examDate: string;
+  result: ComprehensiveExamResult;
+  retakeDeadline?: string;
+  remarks?: string;
+  conductedBy?: { _id: string; name: string; email: string };
+  createdAt: string;
+}
+
+export type InternshipStatus = 'pending' | 'supervisor_approved' | 'admin_approved' | 'rejected' | 'completed';
+
+export interface Internship {
+  _id: string;
+  student: string | StudentProfileView;
+  organization: string;
+  researchTopic: string;
+  startDate: string;
+  endDate: string;
+  durationMonths: number;
+  status: InternshipStatus;
+  supervisorComment?: string;
+  adminComment?: string;
+  createdAt: string;
+}
+
+export type ExternalExaminerStatus = 'invited' | 'accepted' | 'declined' | 'report_submitted' | 'overdue_replacement_required';
+export type ExaminerCategory = 'I' | 'II' | 'III';
+
+export interface ExternalExaminer {
+  _id: string;
+  thesis: string;
+  student: string | StudentProfileView;
+  examinerName: string;
+  examinerEmail: string;
+  institution: string;
+  invitationDate: string;
+  responseDueDate: string;
+  status: ExternalExaminerStatus;
+  category?: ExaminerCategory;
+  cat3ResponseDueDate?: string;
+  reportUrl?: string;
+  remarks?: string;
+  isOverdue?: boolean;
+  recommendedAction?: string;
+  createdAt: string;
+}
+
+export type TimelineAlertSeverity = 'critical' | 'warning' | 'info';
+
+export interface TimelineAlert {
+  code: string;
+  title: string;
+  message: string;
+  severity: TimelineAlertSeverity;
+  dueDate?: string;
+  daysDiff?: number;
+  actionLink?: string;
+}
+
+export interface RegistrationValidity {
+  admissionDate: string;
+  expiryDate: string;
+  isExpired: boolean;
+  daysRemaining: number;
+  status: 'valid' | 'expiring_soon' | 'expired';
+}
+
+export interface ScholarDueItem {
+  studentId: string;
+  studentName: string;
+  rollNumber: string;
+  collegeId: string;
+  department: string;
+  supervisorName?: string;
+  dueMilestone: string;
+  dueDate?: string;
+  daysDiff: number;
+  status: 'overdue' | 'due_soon';
+  action: string;
+}

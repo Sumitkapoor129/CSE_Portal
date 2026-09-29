@@ -150,7 +150,7 @@ export function SrcCommitteeManagement(): JSX.Element {
       studentsReq.refetch();
     } catch (err: unknown) {
       setSubmitting(false);
-      const message = err instanceof Error ? err.message : (err as any)?.message;
+      const message = err instanceof Error ? err.message : (err as { message?: string })?.message;
       setFormError(message || 'Unable to create the committee. Please try again.');
     }
   };
