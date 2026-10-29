@@ -137,6 +137,7 @@ export function StudentCourses(): JSX.Element {
                   value: semester._id,
                   label: `Semester ${semester.semesterNumber} · ${semester.academicYear}`,
                 }))}
+                id="semester-select"
                 aria-label="Semester"
                 className="w-full sm:w-56"
               />
@@ -149,6 +150,7 @@ export function StudentCourses(): JSX.Element {
           </div>
           <div className="mt-4">
             <Table
+              ariaLabel="Enrolled courses"
               columns={[
                 { key: 'code', header: 'Code' },
                 { key: 'name', header: 'Name' },
