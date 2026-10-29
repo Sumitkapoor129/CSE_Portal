@@ -1,4 +1,5 @@
 import express from 'express';
+import path from 'path';
 import { errorHandler } from '../middleware/errorHandler';
 import authRoutes from '../routes/authRoutes';
 import studentRoutes from '../routes/studentRoutes';
@@ -8,6 +9,7 @@ import adminRoutes from '../routes/adminRoutes';
 const testApp = express();
 
 testApp.use(express.json({ limit: '10mb' }));
+testApp.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 testApp.use('/api/auth', authRoutes);
 testApp.use('/api/student', studentRoutes);
 testApp.use('/api/supervisor', supervisorRoutes);

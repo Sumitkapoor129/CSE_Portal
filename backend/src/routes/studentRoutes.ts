@@ -1,3 +1,4 @@
+import { documentUpload } from '../middleware/documentUpload';
 import { Router } from 'express';
 import {
   getProfile,
@@ -9,6 +10,7 @@ import {
   getCredits,
   getDocuments,
   uploadDocument,
+  deleteDocument,
   getThesis,
   submitThesis,
   getTimeline,
@@ -47,7 +49,8 @@ router.post('/semesters/:semesterId/courses', addCourse);
 router.get('/credits', getCredits);
 
 router.get('/documents', getDocuments);
-router.post('/documents', uploadDocument);
+router.post('/documents', documentUpload.single('file'), uploadDocument);
+router.delete('/documents/:id', deleteDocument);
 
 router.get('/thesis', getThesis);
 router.post('/thesis', submitThesis);

@@ -203,6 +203,9 @@ export interface DocumentView {
   documentName: string;
   documentType: string;
   fileUrl: string;
+  semesterNumber?: number;
+  fileSize?: number;
+  mimeType?: string;
   uploadedBy: UserShort | string;
   uploadDate: string;
   approvalStatus: ApprovalStatus;

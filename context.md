@@ -255,3 +255,37 @@ CSE_portal/
   - Dynamic credit calculation automatically handles status flips between `completed` and `pending` via `computeCreditsForSemester`.
   - Backend test suite [`backend/src/__tests__/adminCourseManagement.test.ts`](backend/src/__tests__/adminCourseManagement.test.ts) verified.
   - Multi-agent review loop: Aesthetic, Performance, Code Quality, and Accessibility reviewers all approved.
+
+---
+
+## 14. Semester-wise Document Management System
+- **Mission & Scope**:
+  - Implemented an institutional, semester-partitioned document management system under **Student → Documents** for PhD scholars.
+- **Dynamic Semester Engine**:
+  - Automatically calculates current semester from student's profile `admissionDate` using the statutory 6-month rule (Semester 1: admissionDate to +6 months - 1 day; Semester 2: +6 months to +12 months - 1 day; etc.).
+  - Handles leap years, month-end date clamping (e.g. 31st), and missing or invalid dates gracefully (defaults to Semester 1).
+  - Implemented in pure utility modules [`backend/src/utils/semester.ts`](backend/src/utils/semester.ts) and [`frontend/src/utils/semester.ts`](frontend/src/utils/semester.ts).
+- **Backend Architecture & Security**:
+  - Schema extension on `DocumentModel`: `semesterNumber` (required integer >= 1), `fileSize` (number), `mimeType` (string). Compound index `{ student: 1, semesterNumber: 1, uploadDate: -1 }`.
+  - Future semester upload prevention: `POST /api/student/documents` dynamically validates `semesterNumber <= currentSemester` derived on the server, rejecting future semester attempts with status 400.
+  - Multipart upload middleware (`backend/src/middleware/documentUpload.ts`): Multer disk storage streamed to `uploads/documents/` with 25MB limit and allowed types (`.pdf, .doc, .docx, .png, .jpg, .jpeg, .webp`). External URL fallback preserved.
+  - Document deletion endpoint (`DELETE /api/student/documents/:id`): Verifies scholar ownership, validates upload path containment to prevent directory traversal, unlinks physical files asynchronously (`fs.promises.unlink`), deletes database record, and writes audit log.
+  - Static file hosting: `/uploads` statically mounted in `app.ts` and `testApp.ts`.
+- **Frontend UI & User Experience**:
+  - Collapsible accordion interface: Renders all semesters from Semester 1 up to `currentSemester`.
+  - Each semester card displays: Semester title, formatted date range (e.g. `15 Jul 2025 – 14 Jan 2026`), prominent "Current Semester" highlight badge (`bg-blue-50 text-blue-700 border-blue-200`), document count pill, and smooth 200ms chevron expand/collapse toggle.
+  - Current semester expanded by default; past semesters can be expanded/collapsed independently.
+  - Contextual empty states: "No documents uploaded for this semester" with a "+ Upload Document" button that pre-selects that specific semester in the upload modal.
+  - Upload Document Modal: Document Name, Document Type, Semester dropdown (strictly constrained to Semester 1 through `currentSemester`), File picker (with client-side 25MB validation and preview of file name/size) or URL fallback.
+  - Document Actions: Open (new tab preview), Download, and Delete (with `ConfirmModal` dialog confirming document deletion).
+  - Preserved existing "Forms" tab cleanly.
+- **Accessibility & Compliance (WCAG 2.1 AA)**:
+  - WAI-ARIA accordion pattern: Accordion buttons wrapped in `<h3>` with `id="semester-header-{sem}"`, `aria-expanded`, and `aria-controls="semester-panel-{sem}"`. Collapsible panels marked with `id="semester-panel-{sem}"`, `role="region"`, and `aria-labelledby`.
+  - Disambiguated action buttons with visually hidden text (`<span className="sr-only">document {docName}</span>`).
+  - Decorative SVG icons marked with `aria-hidden="true"`.
+  - Explicit labels and `aria-describedby` helper texts on file inputs.
+- **Automated Verification**:
+  - Backend test suite: [`backend/src/__tests__/semesterDocuments.test.ts`](backend/src/__tests__/semesterDocuments.test.ts) (8 tests passing). Full backend suite: 20/20 test suites, 109/109 tests passing.
+  - Frontend test suite: [`frontend/src/pages/student/__tests__/StudentDocuments.test.tsx`](frontend/src/pages/student/__tests__/StudentDocuments.test.tsx) (8 tests passing). Full frontend suite: 12/12 test suites, 66/66 tests passing.
+  - Production builds: Both backend (`tsc`) and frontend (`tsc -b && vite build`) compile with 0 errors.
+  - Multi-agent review loop: Reviewed and approved by Aesthetic/UX Reviewer (9.6/10), Performance Reviewer (approved), Code Quality Reviewer (approved), and Accessibility Reviewer (compliant).

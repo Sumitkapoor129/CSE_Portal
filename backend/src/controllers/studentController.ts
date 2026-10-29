@@ -1,3 +1,6 @@
+import path from 'path';
+import fs from 'fs';
+import { calculateCurrentSemester } from '../utils/semester';
 import { Response } from 'express';
 import { StudentProfile } from '../models/StudentProfile';
 import { Semester } from '../models/Semester';
@@ -431,21 +434,38 @@ export const getDocuments = asyncHandler(async (req: AuthRequest, res: Response)
     throw new AppError('Student profile not found', 404);
   }
 
-  const documents = await DocumentModel.find({ student: profile._id })
+  const currentSemester = calculateCurrentSemester(profile.admissionDate);
+
+  const rawDocs = await DocumentModel.find({ student: profile._id })
     .populate('semester', 'semesterNumber academicYear')
-    .sort({ uploadDate: -1 })
+    .sort({ uploadDate: -1, createdAt: -1 })
     .lean();
 
-  res.status(200).json({ success: true, data: documents });
+  const documents = rawDocs.map((doc: any) => {
+    let semNum = doc.semesterNumber;
+    if (!semNum && doc.semester && typeof doc.semester === 'object' && doc.semester.semesterNumber) {
+      semNum = doc.semester.semesterNumber;
+    }
+    if (!semNum) {
+      semNum = calculateCurrentSemester(profile.admissionDate, doc.uploadDate || doc.createdAt);
+    }
+    return {
+      ...doc,
+      semesterNumber: semNum,
+    };
+  });
+
+  res.status(200).json({
+    success: true,
+    data: documents,
+    meta: {
+      currentSemester,
+      admissionDate: profile.admissionDate,
+    },
+  });
 });
 
 export const uploadDocument = asyncHandler(async (req: AuthRequest, res: Response) => {
-  const { documentName, documentType, fileUrl, semester } = req.body;
-
-  if (!documentName || !documentType || !fileUrl) {
-    throw new AppError('documentName, documentType and fileUrl are required', 400);
-  }
-
   const profile = await StudentProfile.findOne({ user: req.user!.id });
   if (!profile) {
     throw new AppError('Student profile not found', 404);
@@ -453,12 +473,64 @@ export const uploadDocument = asyncHandler(async (req: AuthRequest, res: Respons
 
   requireAssignedSupervisor(profile, 'Uploading a document');
 
+  let fileUrl = req.body.fileUrl;
+  let fileSize = req.body.fileSize ? Number(req.body.fileSize) : undefined;
+  let mimeType = req.body.mimeType;
+
+  if (req.file) {
+    fileUrl = `/uploads/documents/${req.file.filename}`;
+    fileSize = req.file.size;
+    mimeType = req.file.mimetype;
+  }
+
+  const documentName = req.body.documentName || req.file?.originalname;
+  const documentType = req.body.documentType || 'General';
+
+  if (!documentName || !documentName.trim()) {
+    throw new AppError('Document name is required', 400, { documentName: 'Document name is required' });
+  }
+
+  if (!fileUrl) {
+    throw new AppError('A document file or valid file URL is required', 400, { file: 'File is required' });
+  }
+
+  const currentSemester = calculateCurrentSemester(profile.admissionDate);
+
+  let targetSemesterNumber: number;
+  if (req.body.semesterNumber !== undefined && req.body.semesterNumber !== null && req.body.semesterNumber !== '') {
+    const parsedSem = Number(req.body.semesterNumber);
+    if (isNaN(parsedSem) || parsedSem < 1) {
+      throw new AppError('Semester number must be a valid positive number', 400, { semesterNumber: 'Invalid semester' });
+    }
+    if (parsedSem > currentSemester) {
+      throw new AppError(
+        `Cannot upload documents to future semester (Semester ${parsedSem}). Your current semester is Semester ${currentSemester}.`,
+        400,
+        { semesterNumber: 'Cannot upload to future semesters' }
+      );
+    }
+    targetSemesterNumber = parsedSem;
+  } else {
+    targetSemesterNumber = currentSemester;
+  }
+
+  let semesterId = req.body.semester;
+  if (!semesterId) {
+    const semDoc = await Semester.findOne({ student: profile._id, semesterNumber: targetSemesterNumber });
+    if (semDoc) {
+      semesterId = semDoc._id;
+    }
+  }
+
   const document = await DocumentModel.create({
     student: profile._id,
-    semester,
-    documentName,
-    documentType,
+    semester: semesterId,
+    semesterNumber: targetSemesterNumber,
+    documentName: documentName.trim(),
+    documentType: documentType.trim(),
     fileUrl,
+    fileSize,
+    mimeType,
     uploadedBy: req.user!.id,
     uploadDate: new Date(),
     approvalStatus: ApprovalStatus.PENDING,
@@ -469,10 +541,48 @@ export const uploadDocument = asyncHandler(async (req: AuthRequest, res: Respons
     action: 'upload_document',
     entity: 'Document',
     entityId: document._id.toString(),
-    newValue: { documentName, documentType },
+    newValue: { documentName: document.documentName, documentType: document.documentType, semesterNumber: targetSemesterNumber },
   });
 
   res.status(201).json({ success: true, data: document });
+});
+
+export const deleteDocument = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { id } = req.params;
+
+  const profile = await StudentProfile.findOne({ user: req.user!.id });
+  if (!profile) {
+    throw new AppError('Student profile not found', 404);
+  }
+
+  const document = await DocumentModel.findOne({ _id: id, student: profile._id });
+  if (!document) {
+    throw new AppError('Document not found or you do not have permission to delete it', 404);
+  }
+
+  if (document.fileUrl && document.fileUrl.startsWith('/uploads/documents/')) {
+    try {
+      const resolvedPath = path.resolve(process.cwd(), document.fileUrl.replace(/^\//, ''));
+      const allowedDir = path.resolve(process.cwd(), 'uploads/documents');
+      if (resolvedPath.startsWith(allowedDir) && fs.existsSync(resolvedPath)) {
+        await fs.promises.unlink(resolvedPath);
+      }
+    } catch (e) {
+      console.warn('Failed to delete physical file:', e);
+    }
+  }
+
+  await DocumentModel.findByIdAndDelete(id);
+
+  await createAuditLog({
+    user: req.user!.id,
+    action: 'delete_document',
+    entity: 'Document',
+    entityId: id,
+    previousValue: { documentName: document.documentName, semesterNumber: document.semesterNumber },
+  });
+
+  res.status(200).json({ success: true, data: { message: 'Document deleted successfully' } });
 });
 
 export const getThesis = asyncHandler(async (req: AuthRequest, res: Response) => {
