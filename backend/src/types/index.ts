@@ -176,6 +176,9 @@ export interface IDocument {
   documentName: string;
   documentType: string;
   fileUrl: string;
+  semesterNumber?: number;
+  fileSize?: number;
+  mimeType?: string;
   uploadedBy: string;
   uploadDate: Date;
   approvalStatus: ApprovalStatus;

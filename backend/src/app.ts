@@ -1,4 +1,5 @@
 import express from 'express';
+import path from 'path';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
@@ -53,6 +54,7 @@ const limiter = rateLimit({
   standardHeaders: true,
   message: { message: 'Too many requests, please try again later' },
 });
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 app.use('/api', limiter);
 
 // Stricter tier ONLY for brute-forceable routes (login, register, verify-otp).

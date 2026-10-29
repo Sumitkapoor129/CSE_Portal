@@ -214,6 +214,41 @@ export async function apiUpload<T>(path: string, file: File, opts: { signal?: Ab
   return doUpload(true);
 }
 
+export async function apiUploadFormData<T>(path: string, formData: FormData, opts: { signal?: AbortSignal } = {}): Promise<T> {
+  const doUpload = async (canRefresh: boolean): Promise<T> => {
+    const token = getStoredToken();
+    const headers: Record<string, string> = {};
+    if (token) headers.Authorization = `Bearer ${token}`;
+
+    const url = `${API_URL}${path}`;
+    let res: Response;
+    try {
+      res = await fetch(url, { method: 'POST', headers, body: formData, signal: opts.signal });
+    } catch (err) {
+      if (isAbortError(err) || opts.signal?.aborted) throw err;
+      throw new ApiError('Unable to reach the server. Please try again.', 0);
+    }
+
+    let json: unknown = null;
+    try {
+      json = await res.json();
+    } catch {
+      json = null;
+    }
+
+    if (res.status === 401 && canRefresh && !path.startsWith('/auth/')) {
+      const fresh = await refreshAccessToken();
+      if (fresh) return doUpload(false); // exactly one retry
+    }
+
+    handleEnvelopeResponse(res, json, true);
+
+    const envelope = json as ApiEnvelope<T> | null;
+    return envelope?.data as T;
+  };
+  return doUpload(true);
+}
+
 export async function apiDownload(path: string, opts: { signal?: AbortSignal } = {}): Promise<Blob> {
   const doDownload = async (canRefresh: boolean): Promise<Blob> => {
     const token = getStoredToken();

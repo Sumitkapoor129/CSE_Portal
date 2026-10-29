@@ -1,4 +1,4 @@
-import { apiFetch } from './client';
+import { apiFetch, apiUploadFormData } from './client';
 import type { ApiOpts } from './client';
 import type {
   ComprehensiveExam,
@@ -35,8 +35,19 @@ export const studentApi = {
   getCredits: (semesterId?: string, opts?: ApiOpts) =>
     apiFetch<CreditsListResponse | Credits>('/student/credits', { ...(semesterId ? { query: { semesterId } } : {}), signal: opts?.signal }),
   getDocuments: (opts?: ApiOpts) => apiFetch<DocumentView[]>('/student/documents', { signal: opts?.signal }),
-  uploadDocument: (payload: { documentName: string; documentType: string; fileUrl: string; semester?: string }) =>
-    apiFetch<DocumentView>('/student/documents', { method: 'POST', body: payload }),
+  uploadDocument: (payload: {
+    documentName: string;
+    documentType: string;
+    fileUrl: string;
+    semester?: string;
+    semesterNumber?: number;
+    fileSize?: number;
+    mimeType?: string;
+  }) => apiFetch<DocumentView>('/student/documents', { method: 'POST', body: payload }),
+  uploadDocumentFile: (formData: FormData, opts?: ApiOpts) =>
+    apiUploadFormData<DocumentView>('/student/documents', formData, { signal: opts?.signal }),
+  deleteDocument: (id: string) =>
+    apiFetch<{ message: string }>(`/student/documents/${id}`, { method: 'DELETE' }),
   getTheses: (opts?: ApiOpts) => apiFetch<Thesis[]>('/student/thesis', { signal: opts?.signal }),
   submitThesis: (payload: { title: string; documentUrl: string }) =>
     apiFetch<Thesis>('/student/thesis', { method: 'POST', body: payload }),
