@@ -9,6 +9,7 @@ import { Skeleton } from './components/ui/Skeleton';
 import { LoginPage } from './pages/auth/LoginPage';
 import { RegisterPage } from './pages/auth/RegisterPage';
 import { VerifyOtpPage } from './pages/auth/VerifyOtpPage';
+import { ForgotPasswordPage } from './pages/auth/ForgotPasswordPage';
 
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 const StudentDashboard = lazy(() => import('./pages/student/StudentDashboard'));
@@ -40,6 +41,7 @@ const ROUTE_TITLES: Record<string, string> = {
   '/auth/login': 'Sign In',
   '/auth/register': 'Register',
   '/auth/verify-otp': 'Verify OTP',
+  '/auth/forgot-password': 'Forgot Password',
   '/student': 'Dashboard',
   '/student/profile': 'Profile',
   '/student/milestones': 'Milestones',
@@ -100,6 +102,7 @@ export default function App() {
               <Route path="/auth/login" element={<LoginPage />} />
               <Route path="/auth/register" element={<RegisterPage />} />
               <Route path="/auth/verify-otp" element={<VerifyOtpPage />} />
+              <Route path="/auth/forgot-password" element={<ForgotPasswordPage />} />
               <Route element={<ProtectedRoute />}>
                 <Route element={<DashboardLayout />}>
                   <Route path="/student" element={<ProtectedRoute roles={['student']} />}>

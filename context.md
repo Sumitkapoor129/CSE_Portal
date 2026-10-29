@@ -195,3 +195,21 @@ Key field notes:
   - Frontend: 9 test suites, 36 tests passing (`npm test`).
   - Typecheck: Zero errors across backend (`tsc --noEmit`) and frontend (`tsc -b`).
   - Production builds: Both backend (`npm run build`) and frontend (`vite build`) build cleanly.
+
+
+## 19. Forgot Password Feature
+- **Backend Endpoints & Security**:
+  - `POST /api/auth/forgot-password`: Validates email, verifies account is active, generates a 6-digit OTP via `createOTPRecord`, and dispatches a secure password reset email via `sendPasswordResetEmail`.
+  - `POST /api/auth/reset-password`: Validates email, OTP, and new password (min 6 characters); verifies OTP hash and expiry via `verifyOTPRecord`; hashes new password with bcrypt; and revokes all active refresh tokens for the user (`RefreshToken.deleteMany({ user: user._id })`) to invalidate any stale sessions.
+  - Test coverage: [`backend/src/__tests__/forgotPassword.test.ts`](backend/src/__tests__/forgotPassword.test.ts) (7 comprehensive tests passing).
+- **Frontend Architecture & UI**:
+  - `authApi.forgotPassword(email)` and `authApi.resetPassword(payload)` added to [`frontend/src/api/auth.ts`](frontend/src/api/auth.ts).
+  - [`LoginPage.tsx`](frontend/src/pages/auth/LoginPage.tsx): Added accessible "Forgot password?" link adjacent to the password label; displays success alerts on redirect from reset flow (`location.state?.message`).
+  - [`ForgotPasswordPage.tsx`](frontend/src/pages/auth/ForgotPasswordPage.tsx): Two-step password reset workflow matching portal's minimal, professional design system:
+    - Step 1: Input email address and submit "Send Reset Code".
+    - Step 2: Input 6-digit OTP code (`inputMode="numeric"`, `maxLength={6}`, `autoComplete="one-time-code"`), new password, and confirmation password with "Change email" and "Resend code" actions.
+    - Full client-side validation and server error handling with `applyServerError`.
+    - Redirects to `/auth/login` on success with success alert banner.
+  - Route `/auth/forgot-password` registered in `App.tsx` with page title "Forgot Password".
+  - Test coverage: [`frontend/src/pages/auth/__tests__/ForgotPasswordPage.test.tsx`](frontend/src/pages/auth/__tests__/ForgotPasswordPage.test.tsx) (8 comprehensive tests passing).
+  - Subagent review loop: Aesthetic/UX, Performance, Code Quality, and Accessibility reviewers all reviewed and approved.

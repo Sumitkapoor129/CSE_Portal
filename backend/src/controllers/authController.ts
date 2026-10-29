@@ -5,10 +5,11 @@ import { StudentProfile } from '../models/StudentProfile';
 import { FacultyProfile } from '../models/FacultyProfile';
 import { AppError, asyncHandler } from '../middleware/errorHandler';
 import { createOTPRecord, verifyOTPRecord } from '../utils/otp';
-import { sendOTPEmail } from '../utils/email';
+import { sendOTPEmail, sendPasswordResetEmail } from '../utils/email';
 import { seedMilestones } from '../services/milestoneService';
 import { UserRole, AuthRequest } from '../types';
 import { generateAccessToken, createRefreshSession, refreshUseCase, revokeRefreshToken } from '../utils/tokens';
+import { RefreshToken } from '../models/RefreshToken';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -218,5 +219,80 @@ export const changePassword = asyncHandler(async (req: AuthRequest, res: Respons
   res.status(200).json({
     success: true,
     data: { message: 'Password updated successfully' },
+  });
+});
+
+export const forgotPassword = asyncHandler(async (req: Request, res: Response) => {
+  const { email } = req.body;
+
+  if (!email) {
+    throw new AppError('Email is required.', 400, { email: 'Email is required.' });
+  }
+
+  if (!EMAIL_REGEX.test(email)) {
+    throw new AppError('Enter a valid email address.', 400, { email: 'Enter a valid email address.' });
+  }
+
+  const user = await User.findOne({ email: email.toLowerCase() });
+  if (!user) {
+    throw new AppError('No account found with this email.', 404, { email: 'No account is registered with this email.' });
+  }
+
+  if (!user.isActive) {
+    throw new AppError('Account is inactive. Please contact administrator.', 403, { email: 'Account is inactive.' });
+  }
+
+  const otp = await createOTPRecord(user.email);
+  try {
+    await sendPasswordResetEmail(user.email, otp);
+  } catch (err) {
+    console.error('Failed to dispatch password reset email:', err);
+    throw new AppError('Failed to send password reset email. Please try again later.', 500);
+  }
+
+  res.status(200).json({
+    success: true,
+    data: { message: 'Password reset OTP has been sent to your email.' },
+  });
+});
+
+export const resetPassword = asyncHandler(async (req: Request, res: Response) => {
+  const { email, otp, newPassword } = req.body;
+
+  const missing: Record<string, string> = {};
+  if (!email) missing.email = 'Email is required.';
+  if (!otp) missing.otp = 'OTP is required.';
+  if (!newPassword) missing.newPassword = 'New password is required.';
+
+  if (Object.keys(missing).length > 0) {
+    throw new AppError('Please complete all required fields.', 400, missing);
+  }
+
+  if (!EMAIL_REGEX.test(email)) {
+    throw new AppError('Enter a valid email address.', 400, { email: 'Enter a valid email address.' });
+  }
+
+  if (newPassword.length < 6) {
+    throw new AppError('Password must be at least 6 characters.', 400, { newPassword: 'Password must be at least 6 characters.' });
+  }
+
+  const user = await User.findOne({ email: email.toLowerCase() });
+  if (!user) {
+    throw new AppError('No account found with this email.', 404, { email: 'No account found with this email.' });
+  }
+
+  const isValid = await verifyOTPRecord(email.toLowerCase(), otp);
+  if (!isValid) {
+    throw new AppError('Invalid or expired OTP. Please check and try again.', 400, { otp: 'The OTP is invalid or has expired.' });
+  }
+
+  user.password = await bcrypt.hash(newPassword, 10);
+  await user.save();
+
+  await RefreshToken.deleteMany({ user: user._id });
+
+  res.status(200).json({
+    success: true,
+    data: { message: 'Password reset successful. You can now log in with your new password.' },
   });
 });

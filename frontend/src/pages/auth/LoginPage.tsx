@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { ChangeEvent, FormEvent, JSX } from 'react';
-import { Link, Navigate, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { Alert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
@@ -16,6 +16,8 @@ interface FieldErrors {
 export function LoginPage(): JSX.Element {
   const { user, login } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const successMessage = (location.state as { message?: string } | null)?.message ?? null;
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -68,6 +70,7 @@ export function LoginPage(): JSX.Element {
         <p className="mt-1 text-sm text-gray-500">Sign in to your PhD Scholar Portal account.</p>
 
         <form onSubmit={handleSubmit} className="mt-6 space-y-4" noValidate>
+          {successMessage && <Alert variant="success">{successMessage}</Alert>}
           {serverError && <Alert variant="error">{serverError}</Alert>}
 
           <Input
@@ -81,14 +84,26 @@ export function LoginPage(): JSX.Element {
             placeholder="you@example.com"
           />
 
-          <PasswordInput
-            id="password"
-            label="Password"
-            value={password}
-            onChange={handlePasswordChange}
-            error={fieldErrors.password}
-            autoComplete="current-password"
-          />
+          <div>
+            <div className="mb-1 flex items-center justify-between">
+              <label htmlFor="password" className="block text-xs font-medium uppercase tracking-wide text-gray-500">
+                Password
+              </label>
+              <Link
+                to="/auth/forgot-password"
+                className="text-xs font-medium text-blue-600 hover:text-blue-700"
+              >
+                Forgot password?
+              </Link>
+            </div>
+            <PasswordInput
+              id="password"
+              value={password}
+              onChange={handlePasswordChange}
+              error={fieldErrors.password}
+              autoComplete="current-password"
+            />
+          </div>
 
           <Button type="submit" disabled={submitting} className="w-full">
             {submitting ? 'Logging in…' : 'Log in'}

@@ -46,6 +46,23 @@ export const sendOTPEmail = async (email: string, otp: string): Promise<void> =>
   await sendEmail(email, 'CSE Portal - Email Verification OTP', html);
 };
 
+export const sendPasswordResetEmail = async (email: string, otp: string): Promise<void> => {
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto;">
+      <h2>CSE Portal - Password Reset</h2>
+      <p>You have requested to reset your password. Use the following OTP to proceed:</p>
+      <div style="background: #f4f4f4; padding: 15px; text-align: center; font-size: 24px; 
+                  font-weight: bold; letter-spacing: 5px; border-radius: 8px;">
+        ${otp}
+      </div>
+      <p style="color: #666; margin-top: 15px;">
+        This OTP expires in ${env.OTP_EXPIRY_MINUTES} minutes. Do not share this code. If you did not request this, please ignore this email.
+      </p>
+    </div>
+  `;
+  await sendEmail(email, 'CSE Portal - Password Reset OTP', html);
+};
+
 export const sendNotificationEmail = async (
   email: string,
   title: string,

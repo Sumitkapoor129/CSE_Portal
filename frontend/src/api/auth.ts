@@ -22,6 +22,12 @@ export interface RegisterPayload {
   department: string;
 }
 
+export interface ResetPasswordPayload {
+  email: string;
+  otp: string;
+  newPassword: string;
+}
+
 export const authApi = {
   login(email: string, password: string) {
     return apiFetch<AuthTokens & { user: AuthUser }>('/auth/login', {
@@ -49,6 +55,18 @@ export const authApi = {
   },
   me(opts?: ApiOpts) {
     return apiFetch<AuthUser & { profile?: unknown }>('/auth/me', { signal: opts?.signal });
+  },
+  forgotPassword(email: string) {
+    return apiFetch<{ message: string }>('/auth/forgot-password', {
+      method: 'POST',
+      body: { email },
+    });
+  },
+  resetPassword(payload: ResetPasswordPayload) {
+    return apiFetch<{ message: string }>('/auth/reset-password', {
+      method: 'POST',
+      body: payload,
+    });
   },
   changePassword(currentPassword: string, newPassword: string) {
     return apiFetch<{ message: string }>('/auth/change-password', {
