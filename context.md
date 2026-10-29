@@ -239,3 +239,19 @@ CSE_portal/
   - Route `/auth/forgot-password` registered in `App.tsx` with page title "Forgot Password".
   - Test coverage: [`frontend/src/pages/auth/__tests__/ForgotPasswordPage.test.tsx`](frontend/src/pages/auth/__tests__/ForgotPasswordPage.test.tsx) (8 comprehensive tests passing).
   - Subagent review loop: Aesthetic/UX, Performance, Code Quality, and Accessibility reviewers all reviewed and approved.
+
+
+## 13. Admin Course Management Status Simplification
+- **Status Options**:
+  - In Admin Section > Students > Manage Course (both "Add Course" and "Edit Course" forms), the Status dropdown options are strictly simplified to two choices:
+    - `completed`: 'Completed (Immediate Credits)' / 'Completed'
+    - `pending`: 'Pending'
+    - Removed 'approved' option.
+- **Registered Courses Toggle Button**:
+  - The status action button in the Registered Courses list dynamically toggles:
+    - If status is `completed`: Displays `Mark Pending` (clicking updates status to `pending` and subtracts credits).
+    - If status is not `completed`: Displays `Mark Completed` (clicking updates status to `completed` and awards credits immediately).
+- **Backend & Verification**:
+  - Dynamic credit calculation automatically handles status flips between `completed` and `pending` via `computeCreditsForSemester`.
+  - Backend test suite [`backend/src/__tests__/adminCourseManagement.test.ts`](backend/src/__tests__/adminCourseManagement.test.ts) verified.
+  - Multi-agent review loop: Aesthetic, Performance, Code Quality, and Accessibility reviewers all approved.

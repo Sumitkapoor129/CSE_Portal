@@ -164,4 +164,52 @@ describe('Admin Direct Course Management', () => {
     creditsDoc = await Credits.findOne({ student: studentId, semester: semesterId });
     expect(creditsDoc?.earnedCredits).toBe(3); // only course 1 remains
   });
+
+  it('allows admin to toggle course status between completed and pending with credit adjustment', async () => {
+    const { token, studentId, semesterId } = await setup();
+
+    // 1. Add course with status pending
+    const addRes = await request(app)
+      .post(`/api/admin/students/${studentId}/courses`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        semesterId,
+        courseCode: 'CS703',
+        courseName: 'Machine Learning',
+        credits: 4,
+        status: 'pending',
+      });
+
+    expect(addRes.status).toBe(201);
+    expect(addRes.body.data.course.status).toBe('pending');
+    expect(addRes.body.data.studentCourse.status).toBe('pending');
+
+    // Pending courses do not earn credits
+    let creditsDoc = await Credits.findOne({ student: studentId, semester: semesterId });
+    expect(creditsDoc?.earnedCredits ?? 0).toBe(0);
+
+    // 2. Mark course as completed
+    const markCompletedRes = await request(app)
+      .put(`/api/admin/students/${studentId}/courses/${addRes.body.data.studentCourse._id}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ status: 'completed' });
+
+    expect(markCompletedRes.status).toBe(200);
+    expect(markCompletedRes.body.data.studentCourse.status).toBe('completed');
+
+    creditsDoc = await Credits.findOne({ student: studentId, semester: semesterId });
+    expect(creditsDoc?.earnedCredits).toBe(4);
+
+    // 3. Mark course back to pending
+    const markPendingRes = await request(app)
+      .put(`/api/admin/students/${studentId}/courses/${addRes.body.data.studentCourse._id}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ status: 'pending' });
+
+    expect(markPendingRes.status).toBe(200);
+    expect(markPendingRes.body.data.studentCourse.status).toBe('pending');
+
+    creditsDoc = await Credits.findOne({ student: studentId, semester: semesterId });
+    expect(creditsDoc?.earnedCredits).toBe(0);
+  });
 });

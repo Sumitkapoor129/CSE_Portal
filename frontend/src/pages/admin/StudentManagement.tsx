@@ -109,7 +109,7 @@ export function StudentManagement(): JSX.Element {
   const [newCourseCode, setNewCourseCode] = useState('');
   const [newCourseName, setNewCourseName] = useState('');
   const [newCourseCredits, setNewCourseCredits] = useState<number>(4);
-  const [newCourseStatus, setNewCourseStatus] = useState<string>('completed');
+  const [newCourseStatus, setNewCourseStatus] = useState<'completed' | 'pending'>('completed');
   const [newCourseGrade, setNewCourseGrade] = useState('');
   const [addingCourse, setAddingCourse] = useState(false);
 
@@ -118,7 +118,7 @@ export function StudentManagement(): JSX.Element {
   const [editCourseCode, setEditCourseCode] = useState('');
   const [editCourseName, setEditCourseName] = useState('');
   const [editCourseCredits, setEditCourseCredits] = useState<number>(4);
-  const [editCourseStatus, setEditCourseStatus] = useState<string>('completed');
+  const [editCourseStatus, setEditCourseStatus] = useState<'completed' | 'pending'>('completed');
   const [editCourseGrade, setEditCourseGrade] = useState('');
   const [savingCourse, setSavingCourse] = useState(false);
 
@@ -400,7 +400,7 @@ export function StudentManagement(): JSX.Element {
     setEditCourseCode(courseObj?.courseCode || '');
     setEditCourseName(courseObj?.courseName || '');
     setEditCourseCredits(courseObj?.credits ?? 4);
-    setEditCourseStatus(sc.status);
+    setEditCourseStatus(sc.status === 'completed' ? 'completed' : 'pending');
     setEditCourseGrade(courseObj?.grade || '');
     setCourseActionError(null);
     setCourseActionSuccess(null);
@@ -431,6 +431,7 @@ export function StudentManagement(): JSX.Element {
 
   const handleDeleteCourse = async (studentCourseId: string) => {
     if (!coursesStudent) return;
+    if (!window.confirm('Are you sure you want to delete this course record?')) return;
     setCourseActionError(null);
     setCourseActionSuccess(null);
     try {
@@ -444,14 +445,14 @@ export function StudentManagement(): JSX.Element {
 
   const handleToggleCourseStatus = async (sc: StudentCourse) => {
     if (!coursesStudent) return;
-    const newStatus = sc.status === 'completed' ? 'approved' : 'completed';
+    const newStatus = sc.status === 'completed' ? 'pending' : 'completed';
     setCourseActionError(null);
     setCourseActionSuccess(null);
     try {
       await adminApi.updateStudentCourse(coursesStudent._id, sc._id, {
         status: newStatus,
       });
-      setCourseActionSuccess(`Course status changed to ${newStatus}.`);
+      setCourseActionSuccess(`Course marked as ${newStatus}.`);
       await fetchStudentCourses(coursesStudent._id);
     } catch (err) {
       setCourseActionError(err instanceof Error ? err.message : 'Failed to toggle course status.');
@@ -871,6 +872,7 @@ export function StudentManagement(): JSX.Element {
         open={coursesStudent !== null}
         onClose={closeCourses}
         title={coursesStudent ? `Manage Courses — ${coursesStudent.user?.name ?? 'Scholar'}` : 'Manage Courses'}
+        maxWidth="xl"
       >
         <div className="space-y-5">
           {coursesStudent && (
@@ -971,10 +973,9 @@ export function StudentManagement(): JSX.Element {
                   id="direct-course-status"
                   label="Status"
                   value={newCourseStatus}
-                  onChange={(e) => setNewCourseStatus(e.target.value)}
+                  onChange={(e) => setNewCourseStatus(e.target.value as 'completed' | 'pending')}
                   options={[
                     { value: 'completed', label: 'Completed (Immediate Credits)' },
-                    { value: 'approved', label: 'Approved' },
                     { value: 'pending', label: 'Pending' },
                   ]}
                 />
@@ -1044,10 +1045,9 @@ export function StudentManagement(): JSX.Element {
                             id={`edit-c-status-${sc._id}`}
                             label="Status"
                             value={editCourseStatus}
-                            onChange={(e) => setEditCourseStatus(e.target.value)}
+                            onChange={(e) => setEditCourseStatus(e.target.value as 'completed' | 'pending')}
                             options={[
                               { value: 'completed', label: 'Completed' },
-                              { value: 'approved', label: 'Approved' },
                               { value: 'pending', label: 'Pending' },
                             ]}
                           />
@@ -1096,7 +1096,8 @@ export function StudentManagement(): JSX.Element {
                           size="sm"
                           onClick={() => handleToggleCourseStatus(sc)}
                         >
-                          {sc.status === 'completed' ? 'Mark Approved' : 'Mark Completed'}
+                          {sc.status === 'completed' ? 'Mark Pending' : 'Mark Completed'}
+                          <span className="sr-only"> for {courseObj?.courseCode || 'course'}</span>
                         </Button>
                         <Button
                           variant="secondary"

@@ -44,13 +44,6 @@ export function StudentCourses(): JSX.Element {
 
   const nextSemester = semesterList.reduce((max, semester) => Math.max(max, semester.semesterNumber), 0) + 1;
 
-  const [courseOpen, setCourseOpen] = useState(false);
-  const [courseCode, setCourseCode] = useState('');
-  const [courseName, setCourseName] = useState('');
-  const [credits, setCredits] = useState('');
-  const [courseError, setCourseError] = useState<string | null>(null);
-  const [courseSubmitting, setCourseSubmitting] = useState(false);
-
   if (user?.role !== 'student') return <Navigate to="/" replace />;
 
   const loading = semestersLoading || coursesLoading;
@@ -95,55 +88,11 @@ export function StudentCourses(): JSX.Element {
     }
   };
 
-  const openCourseModal = () => {
-    setCourseCode('');
-    setCourseName('');
-    setCredits('');
-    setCourseError(null);
-    setCourseOpen(true);
-  };
-
-  const handleRequestCourse = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (courseSubmitting || !semesterId) return;
-    if (!courseCode.trim() || !courseName.trim()) {
-      setCourseError('Course code and name are required.');
-      return;
-    }
-    const creditValue = Number.parseFloat(credits);
-    if (!Number.isFinite(creditValue) || creditValue <= 0) {
-      setCourseError('Enter a valid number of credits.');
-      return;
-    }
-    setCourseSubmitting(true);
-    setCourseError(null);
-    try {
-      await studentApi.addCourse(semesterId, {
-        courseCode: courseCode.trim(),
-        courseName: courseName.trim(),
-        credits: creditValue,
-      });
-      setCourseOpen(false);
-      setCourseSubmitting(false);
-      refetchCourses();
-    } catch {
-      setCourseSubmitting(false);
-      setCourseError('Unable to request the course. Please try again.');
-    }
-  };
-
   return (
     <>
       <PageHeader
         title="Courses"
-        description="Manage your semesters and course registrations."
-        actions={
-          profile?.supervisor ? (
-            <Button onClick={openSemesterModal} variant="secondary">
-              Add Semester
-            </Button>
-          ) : undefined
-        }
+        description="View your enrolled courses and manage your semesters."
       />
       {loading && (
         <div className="space-y-6">
@@ -154,7 +103,7 @@ export function StudentCourses(): JSX.Element {
       {error && !loading && <QueryError error={error} onRetry={retryAll} />}
       {!loading && !error && profile && !profile.supervisor && (
         <Alert variant="info">
-          Awaiting supervisor assignment. A supervisor must be assigned by the department before you can register semesters or courses.
+          Awaiting supervisor assignment. A supervisor must be assigned by the department before you can register semesters.
         </Alert>
       )}
       {!loading && !error && semesterList.length === 0 && (
@@ -164,7 +113,7 @@ export function StudentCourses(): JSX.Element {
             message={
               profile?.supervisor
                 ? 'Add your first semester to start registering courses.'
-                : 'A supervisor must be assigned by the department before you can register semesters or request courses.'
+                : 'A supervisor must be assigned by the department before you can register semesters.'
             }
             action={
               profile?.supervisor ? (
@@ -192,8 +141,8 @@ export function StudentCourses(): JSX.Element {
                 className="w-full sm:w-56"
               />
               {profile?.supervisor && (
-                <Button onClick={openCourseModal} variant="secondary" size="sm">
-                  Request Course
+                <Button onClick={openSemesterModal} variant="secondary" size="sm">
+                  Add Semester
                 </Button>
               )}
             </div>
@@ -208,7 +157,7 @@ export function StudentCourses(): JSX.Element {
               ]}
             >
               {(courses ?? []).length === 0 ? (
-                <TableEmpty colSpan={4} message="No courses requested for this semester." />
+                <TableEmpty colSpan={4} message="No courses enrolled for this semester." />
               ) : (
                 (courses ?? []).map((course) => (
                   <TableRow key={course._id}>
@@ -266,43 +215,6 @@ export function StudentCourses(): JSX.Element {
             </Button>
             <Button type="submit" disabled={semesterSubmitting}>
               {semesterSubmitting ? 'Adding…' : 'Add semester'}
-            </Button>
-          </div>
-        </form>
-      </Modal>
-
-      <Modal open={courseOpen} onClose={() => setCourseOpen(false)} title="Request Course">
-        <form onSubmit={handleRequestCourse} className="space-y-4" noValidate>
-          {courseError && <Alert variant="error">{courseError}</Alert>}
-          <Input
-            id="course-code"
-            label="Course Code"
-            value={courseCode}
-            onChange={(event) => setCourseCode(event.target.value)}
-            placeholder="e.g. CSE601"
-          />
-          <Input
-            id="course-name"
-            label="Course Name"
-            value={courseName}
-            onChange={(event) => setCourseName(event.target.value)}
-            placeholder="e.g. Advanced Algorithms"
-          />
-          <Input
-            id="course-credits"
-            label="Credits"
-            type="number"
-            min={1}
-            step="0.5"
-            value={credits}
-            onChange={(event) => setCredits(event.target.value)}
-          />
-          <div className="flex justify-end gap-3">
-            <Button type="button" variant="secondary" onClick={() => setCourseOpen(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={courseSubmitting}>
-              {courseSubmitting ? 'Requesting…' : 'Request course'}
             </Button>
           </div>
         </form>
